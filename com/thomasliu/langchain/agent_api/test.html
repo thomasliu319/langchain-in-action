@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>流式测试</title>
+</head>
+<body>
+    <input id="msg" placeholder="输入问题" size="50" />
+    <button onclick="startStream()">发送</button>
+    <div id="output" style="margin-top:20px; border:1px solid #ccc; padding:10px;"></div>
+    <script>
+        let currentText = "";
+        let currentIndex = 0;
+        let typingTimeout = null;
+
+        function startStream() {
+            const msg = document.getElementById('msg').value;
+            const outputDiv = document.getElementById('output');
+            outputDiv.innerHTML = '';
+            currentText = "";
+            currentIndex = 0;
+            if (typingTimeout) {
+                clearTimeout(typingTimeout);
+                typingTimeout = null;
+            }
+
+            const eventSource = new EventSource(`http://localhost:8000/stream?message=${encodeURIComponent(msg)}`);
+
+            eventSource.onmessage = (event) => {
+                if (event.data === '[DONE]') {
+                    eventSource.close();
+                } else {
+                    const data = JSON.parse(event.data);
+                    // 追加内容
+                    currentText += data.content;
+                    // 开始或继续打字机效果
+                    startTyping(outputDiv, 100);
+                }
+            };
+        }
+
+        // 打字机效果函数
+        function startTyping(element, speed) {
+            if (currentIndex < currentText.length) {
+                element.innerHTML += currentText.charAt(currentIndex);
+                currentIndex++;
+                typingTimeout = setTimeout(() => startTyping(element, speed), speed);
+            }
+        }
+    </script>
+</body>
+</html>
