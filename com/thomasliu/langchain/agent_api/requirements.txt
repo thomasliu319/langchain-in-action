@@ -8,3 +8,4 @@ fastapi
 uvicorn
 sse-starlette
 python-dotenv
+tavily-python==0.7.24
