@@ -7,8 +7,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.postgres import PostgresStore
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig, config
-from numpy.ma.core import append
-from openai.resources.conversations import items
+
 
 load_dotenv()
 
@@ -35,7 +34,7 @@ with PostgresStore.from_conn_string(DB_URI) as store:
         model=os.getenv("OPENAI_MODEL", "deepseek-v4-pro"),
         api_key=os.getenv("OPENAI_API_KEY"),
         base_url=os.getenv("OPENAI_BASE_URL", "https://api.deepseek.com"),
-        model_kwargs={"extra_body": {"thinking": {"type": "disabled"}}},
+        extra_body={"thinking": {"type": "disabled"}},
     )
 
 
