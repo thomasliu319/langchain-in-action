@@ -4,8 +4,11 @@ langchain-community==0.3.29
 langchain-openai==1.1.12
 langgraph==1.0.2
 langgraph-prebuilt==1.0.2
+langsmith
+langgraph-checkpoint-postgres
 fastapi
 uvicorn
 sse-starlette
 python-dotenv
 tavily-python==0.7.24
+psycopg[binary,pool]
