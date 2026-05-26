@@ -17,7 +17,14 @@ if not os.getenv("OPENAI_API_KEY"):
     raise ValueError("请先设置环境变量 OPENAI_API_KEY")
 
 # ---------- 2. 配置 PostgreSQL 数据库连接 ----------
-DB_URI = "postgresql://postgres:postgres@192.168.3.22:5432/langchain_db"
+DB_URI = (
+    f"postgresql://"
+    f"{os.getenv('POSTGRES_USER', 'postgres')}:"
+    f"{os.getenv('POSTGRES_PASSWORD', 'postgres')}@"
+    f"{os.getenv('POSTGRES_HOST', 'localhost')}:"
+    f"{os.getenv('POSTGRES_PORT', '5432')}/"
+    f"{os.getenv('POSTGRES_DB', 'langchain_db')}"
+)
 
 # ---------- 3. 初始化 Store（长记忆）----------
 with PostgresStore.from_conn_string(DB_URI) as store:
