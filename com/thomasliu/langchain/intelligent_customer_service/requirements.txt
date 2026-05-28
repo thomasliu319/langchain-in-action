@@ -1,0 +1,19 @@
+# LLM API
+openai>=1.0.0
+requests
+
+#向量数据库
+chromadb
+
+#文本处理与Embedding
+sentence-transformers
+langchain-text-splitters
+pypdf
+
+#用于解析PDF文档
+#环境变量管理
+python-dotenv
+
+huggingface_hub
+
+
