@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: thomas666
+    volumes:
+      - /mnt/data/software/mysql/data:/var/lib/mysql:rw
+      - /etc/localtime:/etc/localtime:ro
+
+  redis:
+    image: redis:6.2.4
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - /mnt/data/software/redis/data:/data
+    command: redis-server --requirepass thomas666
+
+  nacos:
+    image: nacos/nacos-server:v2.1.1
+    container_name: nacos-server
+    restart: always
+    privileged: true
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "9849:9849"
+    environment:
+      - SPRING_DATASOURCE_PLATFORM=mysql
+      - NACOS_AUTH_ENABLE=true
+      - MYSQL_SERVICE_HOST=192.168.3.22
+      - MYSQL_SERVICE_PORT=3306
+      - MYSQL_SERVICE_DB_NAME=nacos
+      - MYSQL_SERVICE_USER=root
+      - MYSQL_SERVICE_PASSWORD=thomas666
+      - JVM_XMS=2048m
+      - JVM_XMX=2048m
+      - MODE=standalone
+      - PREFER_HOST_MODE=hostname
+    volumes:
+      - /mnt/data/software/nacos/logs:/home/nacos/logs
+      - /mnt/data/software/nacos/conf:/home/nacos/conf
+
+  rabbitmq:
+    image: rabbitmq:3.8.15-management
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=password
+
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: langchain_db
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.5
+    container_name: milvus-etcd
+    restart: always
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - milvus_etcd:/etcd
+
+  milvus-minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: milvus-minio
+    restart: always
+    ports:
+      - "9001:9001"
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    volumes:
+      - milvus_minio:/data
+    command: minio server /data --console-address ":9001"
+
+  milvus:
+    image: milvusdb/milvus:v2.4.17
+    container_name: milvus-standalone
+    restart: always
+    command: ["milvus", "run", "standalone"]
+    ports:
+      - "19530:19530"
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      MINIO_ADDRESS: milvus-minio:9000
+    depends_on:
+      - milvus-etcd
+      - milvus-minio
+
+volumes:
+  postgres_data:
+    external: true
+  milvus_etcd:
+  milvus_minio:
+
+
