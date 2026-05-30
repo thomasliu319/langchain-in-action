@@ -1,9 +1,13 @@
+import os
+from dotenv import load_dotenv
 from pymilvus import MilvusClient
 from sentence_transformers import SentenceTransformer
 from document_loader import load_documents, split_text
 
+load_dotenv()
+
 MODEL_PATH = "/home/thomas/Downloads/models/Qwen3-Embedding-0.6B"
-MILVUS_URI = "http://192.168.3.22:19530"
+MILVUS_URI = os.getenv("MILVUS_URI", "http://192.168.3.22:19530")
 DIMENSION = 1024
 COLLECTION_NAME = "customer_service_kb"
 

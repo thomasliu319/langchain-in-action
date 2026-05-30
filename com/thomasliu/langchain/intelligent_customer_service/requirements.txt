@@ -2,16 +2,26 @@
 openai>=1.0.0
 requests
 
-#向量数据库
+# 向量数据库
 pymilvus
 
-#文本处理与Embedding
+# 文本处理与 Embedding
 sentence-transformers
 langchain-text-splitters
+
+# 多模态模型 & PDF 解析
+transformers
+torch
+torchvision
+accelerate
+Pillow
+pdf2image
 pypdf
 
-#用于解析PDF文档
-#环境变量管理
+# 混合检索
+rank_bm25
+
+# 环境变量管理
 python-dotenv
 
 huggingface_hub

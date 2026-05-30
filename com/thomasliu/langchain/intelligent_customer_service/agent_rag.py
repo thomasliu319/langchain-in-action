@@ -14,7 +14,7 @@ load_dotenv()
 
 # ─── 配置 ───
 MODEL_PATH = "/home/thomas/Downloads/models/Qwen3-Embedding-0.6B"
-MILVUS_URI = "http://192.168.3.22:19530"
+MILVUS_URI = os.getenv("MILVUS_URI", "http://192.168.3.22:19530")
 DIMENSION = 1024
 COLLECTION_NAME = "customer_service_kb"
 
@@ -196,10 +196,11 @@ if __name__ == "__main__":
     init_knowledge_base()
 
     test_cases = [
-        "我的订单 ORD-123 还没收到，是不是丢件了？还有你们的退款政策是啥？",
-        "帮我查一下订单 ORD-456",
-        "帮我退款订单 ORD-456，我不想要了",
+        "How to fix The power cable is damaged/lost",
     ]
     for question in test_cases:
         print(f"\n{'='*50}\n[用户]: {question}\n{'='*50}")
         run_agent(question)
+
+
+
