@@ -3,7 +3,7 @@ openai>=1.0.0
 requests
 
 #向量数据库
-chromadb
+pymilvus
 
 #文本处理与Embedding
 sentence-transformers
@@ -15,5 +15,7 @@ pypdf
 python-dotenv
 
 huggingface_hub
+
+
 
 

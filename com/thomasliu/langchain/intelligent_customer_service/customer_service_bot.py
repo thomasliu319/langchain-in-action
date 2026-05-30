@@ -1,11 +1,16 @@
 import os
 from dotenv import load_dotenv
 from openai import OpenAI
-import chromadb
-from chromadb.utils import embedding_functions
+from pymilvus import MilvusClient
+from sentence_transformers import SentenceTransformer
 from document_loader import load_documents, split_text
 
 load_dotenv()
+
+MODEL_PATH = "/home/thomas/Downloads/models/Qwen3-Embedding-0.6B"
+MILVUS_URI = "http://192.168.3.22:19530"
+DIMENSION = 1024
+COLLECTION_NAME = "customer_service_kb"
 
 RAG_PROMPT_TEMPLATE = """你是一个客服助手。根据以下知识库内容回答用户问题。
 
@@ -33,30 +38,44 @@ def call_deepseek(prompt: str) -> str:
 
 class CustomerServiceBot:
     def __init__(self):
-        self.chroma_client = chromadb.PersistentClient(path="./chroma_db")
-        MODEL_PATH = "/home/thomas/Downloads/models/Qwen3-Embedding-0.6B"
-        self.emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=MODEL_PATH
-        )
-        self.collection = self.chroma_client.get_or_create_collection(
-            name="customer_service_kb",
-            embedding_function=self.emb_fn,
-        )
+        self.model = SentenceTransformer(MODEL_PATH)
+        self.client = MilvusClient(uri=MILVUS_URI)
+        self._init_collection()
+
+    def _init_collection(self):
+        if not self.client.has_collection(COLLECTION_NAME):
+            self.client.create_collection(
+                collection_name=COLLECTION_NAME,
+                dimension=DIMENSION,
+                auto_id=True,
+                metric_type="COSINE",
+            )
 
     def initialize_data(self):
-        if self.collection.count() == 0:
+        stats = self.client.query(COLLECTION_NAME, output_fields=["count(*)"])
+        count = stats[0]["count(*)"] if stats else 0
+        if count == 0:
             print("正在初始化知识库...")
             text = load_documents()
             chunks = split_text(text)
-            ids = [f"id_{i}" for i in range(len(chunks))]
-            metadatas = [{"source": "policy_doc"} for _ in chunks]
-            self.collection.add(documents=chunks, metadatas=metadatas, ids=ids)
+            embeddings = self.model.encode(chunks).tolist()
+            data = [
+                {"vector": emb, "text": chunk, "source": "policy_doc"}
+                for emb, chunk in zip(embeddings, chunks)
+            ]
+            self.client.insert(COLLECTION_NAME, data)
             print(f"成功存储 {len(chunks)} 条向量数据")
 
     def answer(self, question: str) -> str:
         print(f"\n[用户提问]: {question}")
-        results = self.collection.query(query_texts=[question], n_results=3)
-        docs = results["documents"][0]
+        query_emb = self.model.encode(question).tolist()
+        results = self.client.search(
+            collection_name=COLLECTION_NAME,
+            data=[query_emb],
+            limit=3,
+            output_fields=["text"],
+        )
+        docs = [r["entity"]["text"] for r in results[0]]
         context = "\n".join(docs)
         prompt = RAG_PROMPT_TEMPLATE.format(context=context, question=question)
         print("[系统思考中...]")
