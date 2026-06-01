@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG 智能问答</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/app.js"></script>
+</head>
+<body>
+    <nav class="nav">
+        <span class="nav-title">🔧 智能客服系统</span>
+        <a href="/">首页</a>
+        <a href="/rag_query.html">RAG 检索</a>
+        <a href="/rag_ask.html" class="active">RAG 问答</a>
+        <a href="/pdf_process.html">PDF 处理</a>
+        <a href="/agent_chat.html">Agent 对话</a>
+        <a href="/kb_manage.html">知识库</a>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>💬 RAG 智能问答</h2>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+                检索知识库 → 重排序 → DeepSeek 流式生成（带引用标注）
+            </p>
+
+            <div class="form-group">
+                <label>问题</label>
+                <input type="text" id="query" placeholder="输入问题，如：遥控器怎么使用？" />
+            </div>
+
+            <div class="form-group" style="flex:1;min-width:120px;">
+                <label>集合</label>
+                <select id="collection">
+                    <option value="multimodal_kb">multimodal_kb</option>
+                    <option value="customer_service_kb">customer_service_kb</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary" id="askBtn" onclick="doAsk()">发送</button>
+            <button class="btn btn-secondary" id="stopBtn" onclick="stopAsk()" style="display:none;">停止</button>
+            <div id="status" class="status" style="display:none;"></div>
+            <div id="output" class="output streaming-cursor"></div>
+            <div id="references" class="references" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentSSE = null;
+        let typewriter = null;
+
+        function doAsk() {
+            const query = document.getElementById('query').value.trim();
+            if (!query) return;
+
+            if (currentSSE) { currentSSE.close(); currentSSE = null; }
+
+            const output = document.getElementById('output');
+            const refsDiv = document.getElementById('references');
+            const askBtn = document.getElementById('askBtn');
+            const stopBtn = document.getElementById('stopBtn');
+
+            output.innerHTML = '';
+            refsDiv.style.display = 'none';
+            refsDiv.innerHTML = '';
+            askBtn.disabled = true;
+            stopBtn.style.display = 'inline-flex';
+
+            typewriter = new Typewriter(output, 25);
+            typewriter.element.classList.add('streaming-cursor');
+
+            currentSSE = createSSE(
+                `/api/rag/ask?query=${encodeURIComponent(query)}&collection=${document.getElementById('collection').value}`,
+                {
+                    onToken: (content) => typewriter.append(content),
+                    onDone: () => { typewriter.finish(); stop(); },
+                    onError: (msg) => { output.innerHTML += `\n\n[错误] ${msg}`; stop(); },
+                    onReferences: (refs) => {
+                        if (refs && refs.length) {
+                            refsDiv.style.display = 'block';
+                            refsDiv.innerHTML = '<h4>📎 引用来源</h4>' +
+                                refs.map(r => `<div class="reference-item"><span class="chip">${r.rerank_score.toFixed(3)}</span> ${r.source}</div>`).join('');
+                        }
+                    }
+                }
+            );
+        }
+
+        function stopAsk() {
+            if (currentSSE) { currentSSE.close(); currentSSE = null; }
+            if (typewriter) typewriter.finish();
+            stop();
+        }
+
+        function stop() {
+            document.getElementById('askBtn').disabled = false;
+            document.getElementById('stopBtn').style.display = 'none';
+        }
+
+        document.getElementById('query').addEventListener('keydown', e => {
+            if (e.key === 'Enter') doAsk();
+        });
+    </script>
+</body>
+</html>

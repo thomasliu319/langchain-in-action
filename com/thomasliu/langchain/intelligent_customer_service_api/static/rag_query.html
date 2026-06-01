@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG 混合检索</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <nav class="nav">
+        <span class="nav-title">🔧 智能客服系统</span>
+        <a href="/">首页</a>
+        <a href="/rag_query.html" class="active">RAG 检索</a>
+        <a href="/rag_ask.html">RAG 问答</a>
+        <a href="/pdf_process.html">PDF 处理</a>
+        <a href="/agent_chat.html">Agent 对话</a>
+        <a href="/kb_manage.html">知识库</a>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>🔍 RAG 混合检索 + 重排序</h2>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+                向量检索 + BM25 加权融合 → BGE Reranker 精排
+            </p>
+
+            <div class="form-group">
+                <label>查询内容</label>
+                <input type="text" id="query" placeholder="输入查询语句，如：Eyeris 遥控器使用说明" />
+            </div>
+
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                <div class="form-group" style="flex:1;min-width:120px;">
+                    <label>集合</label>
+                    <select id="collection">
+                        <option value="multimodal_kb">multimodal_kb</option>
+                        <option value="customer_service_kb">customer_service_kb</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1;min-width:80px;">
+                    <label>Top-K</label>
+                    <input type="number" id="top_k" value="20" min="1" max="100" />
+                </div>
+                <div class="form-group" style="flex:1;min-width:80px;">
+                    <label>返回数</label>
+                    <input type="number" id="final_k" value="5" min="1" max="20" />
+                </div>
+                <div class="form-group" style="flex:1;min-width:80px;">
+                    <label>向量权重 α</label>
+                    <input type="number" id="alpha" value="0.5" min="0" max="1" step="0.1" />
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="searchBtn" onclick="doSearch()">检索</button>
+            <div id="status" class="status" style="display:none;"></div>
+            <div id="output" class="output"></div>
+        </div>
+    </div>
+
+    <script>
+        async function doSearch() {
+            const query = document.getElementById('query').value.trim();
+            if (!query) return;
+
+            const btn = document.getElementById('searchBtn');
+            const output = document.getElementById('output');
+            const status = document.getElementById('status');
+
+            btn.disabled = true;
+            output.innerHTML = '<div class="loader" style="margin:12px auto;"></div>';
+            status.style.display = 'none';
+
+            try {
+                const resp = await fetch('/api/rag/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query,
+                        collection: document.getElementById('collection').value,
+                        top_k: parseInt(document.getElementById('top_k').value),
+                        final_k: parseInt(document.getElementById('final_k').value),
+                        alpha: parseFloat(document.getElementById('alpha').value),
+                    }),
+                });
+                const data = await resp.json();
+
+                if (!data.results || data.results.length === 0) {
+                    output.innerHTML = '<p style="color:var(--text-secondary)">未找到相关结果</p>';
+                } else {
+                    output.innerHTML = data.results.map((r, i) =>
+                        `<div style="padding:12px;margin-bottom:8px;background:white;border:1px solid var(--border);border-radius:8px;">
+                            <div style="display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+                                <span class="chip">重排: ${r.rerank_score.toFixed(3)}</span>
+                                <span class="chip">混合: ${r.score.toFixed(3)}</span>
+                                <span class="chip">来源: ${r.source}</span>
+                            </div>
+                            <div style="font-size:13px;line-height:1.6;">${r.text}</div>
+                        </div>`
+                    ).join('');
+                }
+            } catch (e) {
+                output.innerHTML = `<p style="color:var(--error)">请求失败: ${e.message}</p>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById('query').addEventListener('keydown', e => {
+            if (e.key === 'Enter') doSearch();
+        });
+    </script>
+</body>
+</html>
+
+# 从项目根目录
+PYTHONPATH=/home/thomas/mySpace/langchain-in-action:$PYTHONPATH conda run -n langchain-dev uvicorn com.thomasliu.langchain.intelligent_customer_service_api.main:app --host 0.0.0.0 --port 8000
+
+# 浏览器访问
+# http://localhost:8000  → 仪表盘
+# http://localhost:8000/docs → Swagger API 文档

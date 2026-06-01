@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识库管理</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <nav class="nav">
+        <span class="nav-title">🔧 智能客服系统</span>
+        <a href="/">首页</a>
+        <a href="/rag_query.html">RAG 检索</a>
+        <a href="/rag_ask.html">RAG 问答</a>
+        <a href="/pdf_process.html">PDF 处理</a>
+        <a href="/agent_chat.html">Agent 对话</a>
+        <a href="/kb_manage.html" class="active">知识库</a>
+    </nav>
+
+    <div class="container">
+        <!-- 集合状态 -->
+        <div class="card">
+            <h2>📊 集合状态</h2>
+            <div id="collectionList">
+                <div class="loader" style="margin:12px auto;"></div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="refreshCollections()" style="margin-top:12px;">刷新</button>
+        </div>
+
+        <!-- 初始化政策文档 -->
+        <div class="card">
+            <h2>📝 初始化预设文档</h2>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">
+                将退换货政策、发货说明、会员权益等预设文档加载到 knowledge_base
+            </p>
+            <button class="btn btn-primary btn-sm" onclick="initPolicy()">初始化预设文档</button>
+            <div id="policyStatus" class="status" style="display:none;"></div>
+        </div>
+
+        <!-- 加载 Markdown 文件 -->
+        <div class="card">
+            <h2>📄 加载 Markdown 文件</h2>
+            <div class="form-group">
+                <label>文件路径</label>
+                <input type="text" id="mdPath" value="/home/thomas/mySpace/langchain-in-action/3.2.5.3 B01买家问题 Buyer problems.md" />
+            </div>
+            <div class="form-group">
+                <label>来源标签</label>
+                <input type="text" id="mdSource" value="b01_quality" />
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="loadMd()">加载入库</button>
+            <div id="mdStatus" class="status" style="display:none;"></div>
+            <div id="mdOutput" class="output"></div>
+        </div>
+
+        <!-- 向量检索测试 -->
+        <div class="card">
+            <h2>🔍 向量检索测试</h2>
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="testQuery" placeholder="输入测试查询" style="flex:1;" />
+                <select id="testCollection" style="width:200px;">
+                    <option value="customer_service_kb">customer_service_kb</option>
+                    <option value="multimodal_kb">multimodal_kb</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="testSearch()">测试</button>
+            </div>
+            <div id="testOutput" class="output"></div>
+        </div>
+
+        <!-- 删除集合 -->
+        <div class="card" style="border:1px solid #fecaca;">
+            <h2 style="color:var(--error);">⚠ 危险操作</h2>
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="dropName" placeholder="集合名称" style="flex:1;" />
+                <button class="btn btn-danger btn-sm" onclick="dropCollection()">删除集合</button>
+            </div>
+            <div id="dropStatus" class="status" style="display:none;"></div>
+        </div>
+    </div>
+
+    <script>
+        refreshCollections();
+
+        async function refreshCollections() {
+            document.getElementById('collectionList').innerHTML = '<div class="loader" style="margin:12px auto;"></div>';
+            try {
+                const resp = await fetch('/api/kb/collections');
+                const data = await resp.json();
+                if (!data.collections || data.collections.length === 0) {
+                    document.getElementById('collectionList').innerHTML = '<p style="color:var(--text-secondary)">暂无集合</p>';
+                    return;
+                }
+                document.getElementById('collectionList').innerHTML =
+                    '<table><thead><tr><th>集合名</th><th>向量条数</th><th>状态</th></tr></thead><tbody>' +
+                    data.collections.map(c =>
+                        `<tr>
+                            <td>${c.name}</td>
+                            <td>${c.count}</td>
+                            <td><span class="chip">${c.exists ? '已就绪' : '不存在'}</span></td>
+                        </tr>`
+                    ).join('') + '</tbody></table>';
+            } catch (e) {
+                document.getElementById('collectionList').innerHTML = `<p style="color:var(--error)">加载失败: ${e.message}</p>`;
+            }
+        }
+
+        async function initPolicy() {
+            const btn = event.target;
+            const status = document.getElementById('policyStatus');
+            btn.disabled = true;
+            status.style.display = 'block';
+            status.className = 'status status-info';
+            status.textContent = '正在初始化...';
+
+            try {
+                const resp = await fetch('/api/kb/init-policy', { method: 'POST' });
+                const data = await resp.json();
+                status.className = `status status-${data.status === 'ok' ? 'success' : 'error'}`;
+                status.textContent = data.message || `已写入 ${data.chunks} 条`;
+                refreshCollections();
+            } catch (e) {
+                status.className = 'status status-error';
+                status.textContent = `失败: ${e.message}`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function loadMd() {
+            const path = document.getElementById('mdPath').value.trim();
+            const source = document.getElementById('mdSource').value.trim();
+            const output = document.getElementById('mdOutput');
+            const status = document.getElementById('mdStatus');
+
+            output.innerHTML = '<div class="loader" style="margin:12px auto;"></div>';
+            status.style.display = 'none';
+
+            try {
+                const resp = await fetch('/api/kb/load-md', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ file_path: path, source_tag: source }),
+                });
+                const data = await resp.json();
+                output.innerHTML = `<p><strong>文件：</strong>${data.file}</p><p><strong>文本块：</strong>${data.chunks}</p><p><strong>字符数：</strong>${data.characters}</p>`;
+                refreshCollections();
+            } catch (e) {
+                output.innerHTML = `<p style="color:var(--error)">失败: ${e.message}</p>`;
+            }
+        }
+
+        async function testSearch() {
+            const query = document.getElementById('testQuery').value.trim();
+            if (!query) return;
+
+            const output = document.getElementById('testOutput');
+            output.innerHTML = '<div class="loader" style="margin:12px auto;"></div>';
+
+            try {
+                const resp = await fetch('/api/kb/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        query,
+                        collection: document.getElementById('testCollection').value,
+                        n_results: 3,
+                    }),
+                });
+                const data = await resp.json();
+                if (!data.results || data.results.length === 0) {
+                    output.innerHTML = '<p style="color:var(--text-secondary)">未找到结果</p>';
+                } else {
+                    output.innerHTML = data.results.map((r, i) =>
+                        `<div style="padding:8px;margin-bottom:6px;background:white;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+                            <span class="chip">Top ${i+1}</span> ${r}
+                        </div>`
+                    ).join('');
+                }
+            } catch (e) {
+                output.innerHTML = `<p style="color:var(--error)">失败: ${e.message}</p>`;
+            }
+        }
+
+        async function dropCollection() {
+            const name = document.getElementById('dropName').value.trim();
+            if (!name) return alert('请输入集合名称');
+            if (!confirm(`确定要删除集合 "${name}" 吗？此操作不可恢复！`)) return;
+
+            const status = document.getElementById('dropStatus');
+            status.style.display = 'block';
+            status.className = 'status status-info';
+            status.textContent = '删除中...';
+
+            try {
+                const resp = await fetch(`/api/kb/collection/${encodeURIComponent(name)}`, { method: 'DELETE' });
+                const data = await resp.json();
+                status.className = 'status status-success';
+                status.textContent = data.message;
+                refreshCollections();
+            } catch (e) {
+                status.className = 'status status-error';
+                status.textContent = `失败: ${e.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
+

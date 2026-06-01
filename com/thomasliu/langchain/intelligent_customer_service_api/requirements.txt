@@ -1,0 +1,39 @@
+# ─── API Server ───
+fastapi>=0.115.0
+uvicorn>=0.30.0
+python-multipart>=0.0.9
+
+# ─── LangChain 生态 ───
+langchain>=1.0.0
+langchain-core>=1.2.0
+langchain-openai>=1.1.0
+langgraph>=1.0.0
+
+# ─── 可观测性 ───
+langsmith>=0.1.0
+
+# ─── LLM 客户端 ───
+openai>=1.0.0
+
+# ─── 向量数据库 ───
+pymilvus>=2.4.0
+
+# ─── 嵌入 & 重排序 ───
+sentence-transformers>=3.0.0
+
+# ─── 多模态 OCR ───
+transformers>=4.44.0
+torch>=2.0.0
+torchvision>=0.15.0
+accelerate>=0.30.0
+Pillow>=10.0.0
+pdf2image>=1.16.0
+
+# ─── 文本处理 ───
+langchain-text-splitters>=0.0.1
+
+# ─── 混合检索 ───
+rank_bm25>=0.2.0
+
+# ─── 配置 ───
+python-dotenv>=1.0.0

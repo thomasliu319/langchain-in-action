@@ -27,7 +27,7 @@ warnings.filterwarnings("ignore")
 MODEL_PATH_VL = "/home/thomas/Downloads/models/Qwen2.5-VL-7B-Instruct"
 MODEL_PATH_EMB = "/home/thomas/Downloads/models/Qwen3-Embedding-0.6B"
 MILVUS_URI = os.getenv("MILVUS_URI", "http://192.168.3.22:19530")
-COLLECTION_NAME = "multimodal_kb"
+COLLECTION_NAME = "bill_kb"
 EMBED_DIM = 1024
 
 _llm = None
@@ -436,7 +436,7 @@ def main():
         query_kb(args.query, args.collection)
         return
 
-    pdf_path = args.pdf or "/home/thomas/mySpace/langchain-in-action/RF-EM001R [Eyeris 1] US Quick Guide Card-Pen remote.pdf"
+    pdf_path = args.pdf or "/home/thomas/mySpace/langchain-in-action/26957000000145062940-pdf.pdf"
 
     if not os.path.exists(pdf_path):
         print(f"文件不存在: {pdf_path}")

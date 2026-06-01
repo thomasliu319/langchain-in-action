@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 对话</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="/app.js"></script>
+</head>
+<body>
+    <nav class="nav">
+        <span class="nav-title">🔧 智能客服系统</span>
+        <a href="/">首页</a>
+        <a href="/rag_query.html">RAG 检索</a>
+        <a href="/rag_ask.html">RAG 问答</a>
+        <a href="/pdf_process.html">PDF 处理</a>
+        <a href="/agent_chat.html" class="active">Agent 对话</a>
+        <a href="/kb_manage.html">知识库</a>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>🤖 ReAct Agent 对话</h2>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+                智能客服 Agent —— 支持知识库检索、订单查询、退款处理
+            </p>
+
+            <div id="chatHistory" style="margin-bottom:16px;max-height:400px;overflow-y:auto;">
+                <div class="status status-info">欢迎！你可以问我产品问题、查询订单或申请退款。</div>
+            </div>
+
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="message" placeholder="输入消息..." style="flex:1;" />
+                <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()">发送</button>
+            </div>
+            <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="quickAsk('遥控器怎么使用？')">遥控器用法</button>
+                <button class="btn btn-secondary btn-sm" onclick="quickAsk('查询订单 ORD-123')">查询订单</button>
+                <button class="btn btn-secondary btn-sm" onclick="quickAsk('退换货政策是什么？')">退换货政策</button>
+                <button class="btn btn-secondary btn-sm" onclick="quickAsk('申请退款 ORD-456，原因：产品质量问题')">申请退款</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSSE = null;
+        let currentTypewriter = null;
+        let currentMsgElem = null;
+
+        function quickAsk(text) {
+            document.getElementById('message').value = text;
+            sendMessage();
+        }
+
+        function sendMessage() {
+            const msg = document.getElementById('message').value.trim();
+            if (!msg) return;
+
+            if (currentSSE) { currentSSE.close(); currentSSE = null; }
+
+            const history = document.getElementById('chatHistory');
+
+            // 用户消息气泡
+            const userBubble = document.createElement('div');
+            userBubble.style.cssText = 'text-align:right;margin-bottom:8px;';
+            userBubble.innerHTML = `<div style="display:inline-block;background:var(--primary);color:white;padding:8px 14px;border-radius:16px 16px 4px 16px;font-size:14px;max-width:80%;text-align:left;">${escapeHtml(msg)}</div>`;
+            history.appendChild(userBubble);
+
+            // Agent 消息气泡
+            const agentBubble = document.createElement('div');
+            agentBubble.style.cssText = 'margin-bottom:8px;';
+            const agentContent = document.createElement('div');
+            agentContent.style.cssText = 'display:inline-block;background:#f1f5f9;padding:8px 14px;border-radius:16px 16px 16px 4px;font-size:14px;max-width:80%;';
+            agentContent.innerHTML = '<span style="color:var(--text-secondary)">思考中...</span>';
+            agentBubble.appendChild(agentContent);
+            history.appendChild(agentBubble);
+
+            history.scrollTop = history.scrollHeight;
+            document.getElementById('message').value = '';
+
+            currentMsgElem = agentContent;
+            currentTypewriter = new Typewriter(agentContent, 20);
+            currentTypewriter.element.classList.add('streaming-cursor');
+
+            currentSSE = createSSE(
+                `/api/agent/chat-stream?message=${encodeURIComponent(msg)}`,
+                {
+                    onToken: (content) => {
+                        if (currentTypewriter) currentTypewriter.append(content);
+                    },
+                    onDone: () => {
+                        if (currentTypewriter) currentTypewriter.finish();
+                        currentSSE = null;
+                    },
+                    onError: (msg) => {
+                        if (currentMsgElem) currentMsgElem.innerHTML += `\n\n[错误] ${msg}`;
+                        currentSSE = null;
+                    },
+                }
+            );
+        }
+
+        function escapeHtml(text) {
+            const d = document.createElement('div');
+            d.textContent = text;
+            return d.innerHTML;
+        }
+
+        document.getElementById('message').addEventListener('keydown', e => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>

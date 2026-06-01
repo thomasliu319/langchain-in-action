@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF 处理</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <nav class="nav">
+        <span class="nav-title">🔧 智能客服系统</span>
+        <a href="/">首页</a>
+        <a href="/rag_query.html">RAG 检索</a>
+        <a href="/rag_ask.html">RAG 问答</a>
+        <a href="/pdf_process.html" class="active">PDF 处理</a>
+        <a href="/agent_chat.html">Agent 对话</a>
+        <a href="/kb_manage.html">知识库</a>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>📄 上传 PDF 并处理入库</h2>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+                Qwen2.5-Omni OCR → 语义分块 → 向量嵌入 → 存入 Milvus
+            </p>
+
+            <div class="form-group">
+                <label>选择 PDF 文件</label>
+                <input type="file" id="file" accept=".pdf" />
+            </div>
+
+            <div class="form-group">
+                <label>目标集合</label>
+                <select id="collection">
+                    <option value="multimodal_kb">multimodal_kb</option>
+                    <option value="customer_service_kb">customer_service_kb</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>DPI (清晰度，50-300)</label>
+                <input type="number" id="dpi" value="150" min="50" max="300" />
+            </div>
+
+            <button class="btn btn-primary" id="processBtn" onclick="processPDF()">处理并入库</button>
+            <div id="status" class="status" style="display:none;"></div>
+            <div id="progress" style="display:none;">
+                <div class="progress-bar"><div class="progress-bar-fill" id="progressFill" style="width:0%;"></div></div>
+                <p id="progressText" style="font-size:13px;color:var(--text-secondary);">处理中...</p>
+            </div>
+            <div id="output" class="output"></div>
+        </div>
+
+        <div class="card">
+            <h2>📂 处理服务器上的 PDF</h2>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+                直接指定服务器上已有的 PDF 文件路径
+            </p>
+            <div class="form-group">
+                <label>PDF 文件路径</label>
+                <input type="text" id="pdfPath" value="/home/thomas/mySpace/langchain-in-action/RF-EM001R [Eyeris 1] US Quick Guide Card-Pen remote.pdf" />
+            </div>
+            <button class="btn btn-primary" onclick="processPathPDF()">从路径处理</button>
+            <div id="status2" class="status" style="display:none;"></div>
+            <div id="output2" class="output"></div>
+        </div>
+    </div>
+
+    <script>
+        async function processPDF() {
+            const file = document.getElementById('file').files[0];
+            if (!file) return alert('请选择 PDF 文件');
+
+            const btn = document.getElementById('processBtn');
+            const output = document.getElementById('output');
+            const status = document.getElementById('status');
+            const progress = document.getElementById('progress');
+
+            btn.disabled = true;
+            output.innerHTML = '';
+            status.style.display = 'none';
+            progress.style.display = 'block';
+            document.getElementById('progressFill').style.width = '30%';
+            document.getElementById('progressText').textContent = '正在上传并处理...';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('collection', document.getElementById('collection').value);
+                formData.append('dpi', document.getElementById('dpi').value);
+
+                document.getElementById('progressFill').style.width = '60%';
+                const resp = await fetch('/api/rag/process-pdf', { method: 'POST', body: formData });
+                const data = await resp.json();
+
+                document.getElementById('progressFill').style.width = '100%';
+                document.getElementById('progressText').textContent = '处理完成';
+
+                output.innerHTML = `<div>
+                    <p><strong>文件：</strong>${data.file}</p>
+                    <p><strong>页数：</strong>${data.pages}</p>
+                    <p><strong>向量条数：</strong>${data.vectors}</p>
+                </div>`;
+            } catch (e) {
+                output.innerHTML = `<p style="color:var(--error)">处理失败: ${e.message}</p>`;
+            } finally {
+                btn.disabled = false;
+                setTimeout(() => progress.style.display = 'none', 2000);
+            }
+        }
+
+        async function processPathPDF() {
+            const path = document.getElementById('pdfPath').value.trim();
+            if (!path) return;
+
+            const output = document.getElementById('output2');
+            const status = document.getElementById('status2');
+
+            output.innerHTML = '<div class="loader" style="margin:12px auto;"></div>';
+
+            try {
+                const resp = await fetch('/api/rag/process-pdf-path', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({
+                        pdf_path: path,
+                        collection: document.getElementById('collection').value,
+                        dpi: document.getElementById('dpi').value,
+                    }),
+                });
+                const data = await resp.json();
+                output.innerHTML = `<div>
+                    <p><strong>文件：</strong>${data.file}</p>
+                    <p><strong>页数：</strong>${data.pages}</p>
+                    <p><strong>向量条数：</strong>${data.vectors}</p>
+                </div>`;
+            } catch (e) {
+                output.innerHTML = `<p style="color:var(--error)">处理失败: ${e.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

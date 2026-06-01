@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能客服系统</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <nav class="nav">
+        <span class="nav-title">🔧 智能客服系统</span>
+        <a href="/" class="active">首页</a>
+        <a href="/rag_query.html">RAG 检索</a>
+        <a href="/rag_ask.html">RAG 问答</a>
+        <a href="/pdf_process.html">PDF 处理</a>
+        <a href="/agent_chat.html">Agent 对话</a>
+        <a href="/kb_manage.html">知识库</a>
+    </nav>
+
+    <div class="container">
+        <h1 style="font-size:24px; margin-bottom:8px;">智能客服系统</h1>
+        <p style="color:var(--text-secondary); margin-bottom:24px;">
+            多模态 RAG + ReAct Agent + LangSmith 可观测
+        </p>
+
+        <div class="card-grid">
+            <a href="/rag_query.html" class="dashboard-card">
+                <div class="icon">🔍</div>
+                <h3>RAG 混合检索</h3>
+                <p>向量检索 + BM25 + BGE 重排序，精确定位知识库中的相关信息</p>
+            </a>
+
+            <a href="/rag_ask.html" class="dashboard-card">
+                <div class="icon">💬</div>
+                <h3>RAG 智能问答</h3>
+                <p>基于检索结果的流式生成，带引用标注，支持 SSE 实时输出</p>
+            </a>
+
+            <a href="/pdf_process.html" class="dashboard-card">
+                <div class="icon">📄</div>
+                <h3>PDF 处理</h3>
+                <p>Qwen2.5-Omni OCR → 语义分块 → 向量化 → 自动入库</p>
+            </a>
+
+            <a href="/agent_chat.html" class="dashboard-card">
+                <div class="icon">🤖</div>
+                <h3>Agent 对话</h3>
+                <p>ReAct Agent：知识库检索 + 订单查询 + 退款处理，流式输出</p>
+            </a>
+
+            <a href="/kb_manage.html" class="dashboard-card">
+                <div class="icon">📚</div>
+                <h3>知识库管理</h3>
+                <p>集合管理、文档加载、向量检索测试、Milvus 状态监控</p>
+            </a>
+
+            <a href="/docs" class="dashboard-card">
+                <div class="icon">📖</div>
+                <h3>API 文档</h3>
+                <p>Swagger / OpenAPI 交互式文档，测试所有 REST API</p>
+            </a>
+        </div>
+
+        <div class="card">
+            <h2>系统状态</h2>
+            <div id="sysinfo">
+                <p>加载中...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        fetch('/api/kb/collections')
+            .then(r => r.json())
+            .then(data => {
+                const html = data.collections.map(c =>
+                    `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+                        <span>${c.name}</span>
+                        <span><span class="chip">${c.count} 条</span></span>
+                    </div>`
+                ).join('');
+                document.getElementById('sysinfo').innerHTML = html || '<p>暂无集合</p>';
+            })
+            .catch(() => {
+                document.getElementById('sysinfo').innerHTML = '<p style="color:var(--error)">无法连接服务</p>';
+            });
+    </script>
+</body>
+</html>
