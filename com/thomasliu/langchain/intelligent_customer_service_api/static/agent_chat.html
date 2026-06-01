@@ -75,6 +75,23 @@
             agentBubble.appendChild(agentContent);
             history.appendChild(agentBubble);
 
+            // 可折叠思考过程
+            const thoughtBox = document.createElement('div');
+            thoughtBox.style.cssText = 'margin-bottom:4px;font-size:12px;';
+            const thoughtHeader = document.createElement('div');
+            thoughtHeader.style.cssText = 'cursor:pointer;color:#888;user-select:none;padding:2px 0;';
+            thoughtHeader.innerHTML = '▼ 思考过程';
+            const thoughtBody = document.createElement('div');
+            thoughtBody.style.cssText = 'color:#999;padding:2px 0 2px 14px;border-left:2px solid #e0e0e0;margin-top:2px;';
+            thoughtHeader.onclick = () => {
+                const isHidden = thoughtBody.style.display === 'none';
+                thoughtBody.style.display = isHidden ? '' : 'none';
+                thoughtHeader.innerHTML = (isHidden ? '▼' : '▶') + ' 思考过程';
+            };
+            thoughtBox.appendChild(thoughtHeader);
+            thoughtBox.appendChild(thoughtBody);
+            agentBubble.parentNode.insertBefore(thoughtBox, agentBubble);
+
             history.scrollTop = history.scrollHeight;
             document.getElementById('message').value = '';
 
@@ -82,10 +99,26 @@
             currentTypewriter = new Typewriter(agentContent, 20);
             currentTypewriter.element.classList.add('streaming-cursor');
 
+            let placeholderCleared = false;
+            function clearPlaceholder() {
+                if (!placeholderCleared) {
+                    placeholderCleared = true;
+                    currentTypewriter.reset();
+                }
+            }
             currentSSE = createSSE(
                 `/api/agent/chat-stream?message=${encodeURIComponent(msg)}`,
                 {
+                    onThinking: (content) => {
+                        clearPlaceholder();
+                        const div = document.createElement('div');
+                        div.style.cssText = 'padding:1px 0;';
+                        div.textContent = '→ ' + content;
+                        thoughtBody.appendChild(div);
+                        history.scrollTop = history.scrollHeight;
+                    },
                     onToken: (content) => {
+                        clearPlaceholder();
                         if (currentTypewriter) currentTypewriter.append(content);
                     },
                     onDone: () => {

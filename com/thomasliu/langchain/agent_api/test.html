@@ -24,7 +24,7 @@
                 typingTimeout = null;
             }
 
-            const eventSource = new EventSource(`http://localhost:8000/stream?message=${encodeURIComponent(msg)}`);
+            const eventSource = new EventSource(`http://localhost:8006/stream?message=${encodeURIComponent(msg)}`);
 
             eventSource.onmessage = (event) => {
                 if (event.data === '[DONE]') {

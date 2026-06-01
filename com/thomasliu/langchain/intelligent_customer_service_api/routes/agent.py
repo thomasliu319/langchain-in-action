@@ -22,9 +22,8 @@ async def chat(req: ChatRequest):
 def _run_chat_stream(message: str):
     """Agent 流式输出的公共逻辑"""
     def gen():
-        for token in agent_service.run_agent_stream(message):
-            if token:
-                yield f"data: {json.dumps({'content': token, 'type': 'token'})}\n\n"
+        for event in agent_service.run_agent_stream(message):
+            yield f"data: {json.dumps(event)}\n\n"
         yield "data: [DONE]\n\n"
     return gen()
 

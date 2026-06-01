@@ -72,8 +72,8 @@ def process_refund(order_id: str, reason: str) -> str:
 
 
 TOOL_DEFINITIONS = [
-    {"type": "function", "function": {"name": "search_knowledge_base", "description": "搜索客服知识库获取相关文档内容", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "搜索关键词"}}, "required": ["query"]}}},
-    {"type": "function", "function": {"name": "get_order_details", "description": "查询订单详情", "parameters": {"type": "object", "properties": {"order_id": {"type": "string", "description": "订单号"}}, "required": ["order_id"]}}},
+    {"type": "function", "function": {"name": "search_knowledge_base", "description": "搜索知识库查找发票信息、商品明细、产品规格、退换货政策等所有文档内容", "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "搜索关键词，如发票号码、商品名、订单号等"}}, "required": ["query"]}}},
+    {"type": "function", "function": {"name": "get_order_details", "description": "查询订单详情（仅限 ORD-123 和 ORD-456）", "parameters": {"type": "object", "properties": {"order_id": {"type": "string", "description": "订单号"}}, "required": ["order_id"]}}},
     {"type": "function", "function": {"name": "process_refund", "description": "提交退款申请", "parameters": {"type": "object", "properties": {"order_id": {"type": "string", "description": "订单号"}, "reason": {"type": "string", "description": "退款原因"}}, "required": ["order_id", "reason"]}}},
 ]
 
@@ -83,7 +83,14 @@ AVAILABLE_FUNCTIONS = {
     "process_refund": process_refund,
 }
 
-SYSTEM_PROMPT = "你是一个智能客服助手。你可以查询知识库、订单信息和处理退款。请基于工具返回的结果回答用户问题。"
+SYSTEM_PROMPT = (
+    "你是一个智能客服助手。\n"
+    "规则：\n"
+    "1. 用工具获取信息来回答，不要凭空回答。\n"
+    "2. 不要猜测用户意图来决定用哪个工具，不确定时可先搜知识库。\n"
+    "3. 如果某个工具返回空或无帮助，换另一个工具再试。\n"
+    "4. 拿到结果后用一两句精炼的话回答核心问题，不要罗列原始数据。"
+)
 
 
 # ─── 知识库初始化 ───
@@ -136,6 +143,7 @@ def _react_loop(llm: OpenAI, messages: list) -> str:
         if choice.finish_reason == "stop":
             return choice.message.content or ""
         if choice.finish_reason == "tool_calls":
+            messages.append(choice.message)
             for tc in choice.message.tool_calls:
                 fn_name = tc.function.name
                 fn_args = json.loads(tc.function.arguments)
@@ -144,7 +152,6 @@ def _react_loop(llm: OpenAI, messages: list) -> str:
                     result = fn(**fn_args)
                 else:
                     result = json.dumps({"error": f"Unknown tool: {fn_name}"})
-                messages.append(choice.message)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
     return "抱歉，处理超时，请重试。"
 
@@ -152,23 +159,45 @@ def _react_loop(llm: OpenAI, messages: list) -> str:
 # ─── Agent 流式输出（供 SSE 使用） ───
 
 def run_agent_stream(user_input: str, messages: list | None = None):
-    """ReAct Agent 流式版本，逐 token 产出"""
-    from openai import OpenAI
+    """ReAct Agent 流式版本：产出结构化事件（thinking / token）"""
     msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
     if messages:
         msgs.extend(messages)
     msgs.append({"role": "user", "content": user_input})
 
     llm = _get_llm()
-    stream = llm.chat.completions.create(
-        model=settings.OPENAI_MODEL, messages=msgs,
-        tools=TOOL_DEFINITIONS, tool_choice="auto",
-        temperature=0.3, stream=True,
-        extra_body={"thinking": {"type": "disabled"}},
-    )
-    # 默认 stream=True 时，OpenAI 流式返回工具调用有空心框架问题
-    # 直接流式输出，不做工具调用处理（简化版）
-    for chunk in stream:
-        delta = chunk.choices[0].delta if chunk.choices else None
-        if delta and delta.content:
-            yield delta.content
+    max_iterations = 10
+    for iteration in range(max_iterations):
+        resp = llm.chat.completions.create(
+            model=settings.OPENAI_MODEL, messages=msgs,
+            tools=TOOL_DEFINITIONS, tool_choice="auto",
+            temperature=0.3,
+            extra_body={"thinking": {"type": "disabled"}},
+        )
+        choice = resp.choices[0]
+        if choice.finish_reason == "stop":
+            text = choice.message.content or ""
+            # stream final answer token by token
+            import re
+            tokens = re.split(r'(?<=[，。！？])', text)
+            for token in tokens:
+                if token.strip():
+                    yield {"type": "token", "content": token}
+            return
+
+        if choice.finish_reason == "tool_calls":
+            msgs.append(choice.message)
+            for tc in choice.message.tool_calls:
+                fn_name = tc.function.name
+                fn_args = json.loads(tc.function.arguments)
+                yield {"type": "thinking", "content": f"调用工具: {fn_name}"}
+                fn = AVAILABLE_FUNCTIONS.get(fn_name)
+                if fn:
+                    result = fn(**fn_args)
+                else:
+                    result = json.dumps({"error": f"Unknown tool: {fn_name}"})
+                has_data = "未找到" not in result and "error" not in result
+                summary = "已找到相关信息" if has_data else "未找到相关信息"
+                yield {"type": "thinking", "content": f"工具返回: {summary}"}
+                msgs.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+    yield {"type": "token", "content": "抱歉，处理超时，请重试。"}

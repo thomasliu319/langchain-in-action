@@ -1,7 +1,9 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+_env_path = Path(__file__).parent / ".env"
+load_dotenv(_env_path)
 
 
 class Settings:
@@ -29,8 +31,8 @@ class Settings:
     EMBED_DIM: int = 1024
 
     # Server
-    HOST: str = "0.0.0.0"
-    PORT: int = 8000
+    HOST: str = os.getenv("HOST", "0.0.0.0")
+    PORT: int = int(os.getenv("PORT", "8006"))
 
 
 settings = Settings()

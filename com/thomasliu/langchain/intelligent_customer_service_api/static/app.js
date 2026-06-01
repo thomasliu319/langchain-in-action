@@ -8,6 +8,7 @@ function createSSE(url, options = {}) {
         onDone = () => {},
         onError = () => {},
         onReferences = () => {},
+        onThinking = () => {},
     } = options;
 
     const eventSource = new EventSource(url);
@@ -22,6 +23,8 @@ function createSSE(url, options = {}) {
             const data = JSON.parse(event.data);
             if (data.type === 'token') {
                 onToken(data.content);
+            } else if (data.type === 'thinking') {
+                onThinking(data.content);
             } else if (data.type === 'references') {
                 onReferences(data.references);
             } else if (data.type === 'error') {

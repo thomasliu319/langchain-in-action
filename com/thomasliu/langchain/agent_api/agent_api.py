@@ -42,7 +42,7 @@ async def root():
     return {
         "usage": "GET /chat?message=你的问题 → 一次性返回",
         "stream": "GET /stream?message=你的问题 → 流式返回（SSE）",
-        "example": "http://localhost:8000/chat?message=你好",
+        "example": "http://localhost:8006/chat?message=你好",
     }
 
 
@@ -72,4 +72,4 @@ async def stream_chat(message: str = Query(..., description="用户输入的消�
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="127.0.0.1 ", port=8006)
