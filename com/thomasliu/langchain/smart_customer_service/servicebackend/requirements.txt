@@ -1,0 +1,56 @@
+# ==========================================
+# 智能医疗助手 - Python 依赖清单
+# 使用方式: pip install -r requirements.txt
+# ==========================================
+
+# LangChain 核心
+langchain==1.0.3
+langchain-core==1.2.26
+langchain-community==0.3.29
+langchain-openai==1.1.12
+langchain-text-splitters==1.1.1
+langchain-chroma==1.1.0
+langchain-mcp-adapters==0.2.2
+
+# LangGraph
+langgraph==1.0.2
+langgraph-prebuilt==1.0.2
+langgraph-checkpoint==3.0.1
+langgraph-checkpoint-postgres==3.0.5
+langgraph-sdk==0.2.15
+langgraph-supervisor==0.0.31
+
+# Web 框架
+fastapi==0.135.3
+uvicorn==0.34.0
+starlette==1.0.0
+sse-starlette==3.3.4
+
+# 数据验证
+pydantic==2.13.0
+pydantic-settings==2.13.1
+pydantic_core==2.46.0
+email-validator==2.2.0
+
+# 认证与安全
+python-jose[cryptography]==3.3.0
+python-multipart==0.0.20
+bcrypt==4.2.1
+
+# 数据库驱动 (MySQL + PostgreSQL)
+pymysql==1.1.1
+mysql-connector-python==9.1.0
+sqlalchemy==2.0.36
+psycopg==3.2.3
+psycopg-binary==3.2.3
+psycopg-pool==3.2.4
+
+# 文档处理
+pypdf==5.1.0
+
+# AI 服务
+dashscope==1.22.0
+tavily-python==0.5.0
+
+# 工具
+python-dotenv==1.0.1
