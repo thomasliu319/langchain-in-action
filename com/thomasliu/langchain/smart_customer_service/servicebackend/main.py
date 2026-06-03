@@ -2,9 +2,9 @@ import os
 
 import uvicorn
 from fastapi import FastAPI
-from oauthlib.uri_validate import host
 from starlette.middleware.cors import CORSMiddleware
 
+from app.api import auth
 from app.config.settings import settings
 from app.database.postgresql import PostgresBase, postgres_engine
 #必须要导入模型 才能生存 表
@@ -42,10 +42,14 @@ app.add_middleware(
 )
 
 #注册路由
+app.include_router(auth.router, prefix="/auth", tags=["登录注册"])
 
 
 
-async def  root():
+
+
+@app.get("/")
+async def root():
     """根路径"""
     return {
         "messages":"renpho健身教练",
