@@ -16,7 +16,10 @@ class Settings:
     """应用配置 - 直接从环境变量读取"""
 
     # AI 模型配置
-    DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "")
+    OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
+
     TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "")
 
     # LangSmith 配置（用于追踪和评估）
