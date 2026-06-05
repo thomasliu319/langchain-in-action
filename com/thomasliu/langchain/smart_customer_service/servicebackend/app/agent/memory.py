@@ -65,7 +65,7 @@ def get_long_term_memory():
 #长记忆管理
 
 #保存用户数据到长记忆 个人信息+医疗记录
-def save_user_long_momery(store, namespace: tuple, item_id: str, data: dict):
+def save_user_long_memory(store, namespace: tuple, item_id: str, data: dict):
     if store is None:
         store = get_long_term_memory()
     try:

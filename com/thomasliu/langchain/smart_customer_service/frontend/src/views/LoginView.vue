@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <div class="login-form">
-      <h1 class="login-title">小滴智能医疗助手</h1>
+      <h1 class="login-title">X智能医疗助手</h1>
       <h2 class="login-subtitle">登录</h2>
 
       <el-form :model="loginForm" :rules="rules" ref="loginFormRef" label-width="80px">

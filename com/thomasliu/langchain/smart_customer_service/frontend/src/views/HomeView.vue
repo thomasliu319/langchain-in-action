@@ -127,7 +127,7 @@ const createNewConversation = async () => {
         lastActive: new Date(newConv.last_active),
         messages: [{
           role: 'assistant',
-          content: '您好！我是小滴智能医疗助手，请问有什么可以帮您？',
+          content: '您好！我是X智能医疗助手，请问有什么可以帮您？',
           timestamp: new Date()
         }]
       }
@@ -175,7 +175,7 @@ const selectConversation = async (convId: string) => {
 
       // 如果消息列表为空，添加AI的欢迎消息
       if (messages.value.length === 0) {
-        const welcomeMessage = '您好！我是小滴智能医疗助手，请问有什么可以帮您？'
+        const welcomeMessage = '您好！我是X智能医疗助手，请问有什么可以帮您？'
         messages.value.push({
           role: 'assistant',
           content: welcomeMessage,
@@ -655,7 +655,7 @@ onMounted(() => {
     <header class="langchain-header">
       <div class="header-content">
         <div class="logo">
-          <span class="logo-text">小滴智能医疗助手</span>
+          <span class="logo-text">X智能医疗助手</span>
         </div>
         <div class="user-info">
           <span class="user-id" v-if="user">{{ user.username }}</span>
@@ -775,7 +775,7 @@ onMounted(() => {
     <footer class="langchain-footer">
       <div class="footer-content">
         <div class="footer-copyright">
-          © 2026 小滴智能医疗助手 | 基于 LangChain 构建
+          © 2026 X智能医疗助手 | 基于 LangChain 构建
         </div>
       </div>
     </footer>

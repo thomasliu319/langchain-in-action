@@ -1,5 +1,6 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
+from openai.resources.fine_tuning.checkpoints import checkpoints
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -130,6 +131,81 @@ async def delete_conservation(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"会话删除失败 :{str(e)} ")
+
+# 获取会话详情接口
+@router.get("/get")
+async def  get_conversation(
+        conversation_id:str,
+        current_user:User = Depends(get_current_user),
+        db: Session = Depends(get_postgres_db)
+    ):
+
+    try:
+
+        conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+
+        if not conversation:
+            raise HTTPException(status_code=404, detail="会话不存在")
+
+        #消息列表
+        message_list = []
+        try:
+            checkpointer = get_short_term_memory()
+
+            config = {"configurable":{"thread_id": conversation_id}}
+
+            checkpoints = list(checkpointer.list(config))
+
+            if checkpoints:
+                latest = checkpoints[0]
+
+                checkpoint_data = latest.checkpoint
+
+                channel_values = checkpoint_data.get("channel_values", {})
+
+                messages = channel_values.get("messages", [])
+
+                for msg in messages:
+                    if hasattr(msg, 'content') and hasattr(msg, 'type'):
+
+                        # 过滤
+                        if msg.type in ['human','ai']:
+                            if msg.content and str(msg.content).strip():
+
+                                role = "user" if msg.type == "human" else "assistant"
+
+                                message_list.append({
+                                    "role": role,
+                                    "content": msg.content
+                                })
+
+        except Exception as e:
+            print(f"读取短记忆失败： {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+
+        return {
+            "conversation": {
+                "id": conversation.id,
+                "title": conversation.title,
+                "user_id": conversation.user_id,
+                "last_message": conversation.last_message,
+                "last_active": conversation.last_active,
+                "created_at": conversation.created_at,
+            },
+            "messages": message_list
+        }
+
+
+    except HTTPException :
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"会话详情获取失败：{str(e)}"
+        )
+
+
 
 
 

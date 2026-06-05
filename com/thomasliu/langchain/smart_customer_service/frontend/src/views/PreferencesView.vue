@@ -3,7 +3,7 @@
     <header class="langchain-header">
       <div class="header-content">
         <div class="logo">
-          <span class="logo-text">小滴智能医疗助手</span>
+          <span class="logo-text">X智能医疗助手</span>
         </div>
         <div class="nav">
           <router-link to="/" class="nav-link">首页</router-link>

@@ -1,7 +1,7 @@
 <template>
   <div class="register-container">
     <div class="register-form">
-      <h1 class="register-title">小滴智能医疗助手</h1>
+      <h1 class="register-title">X智能医疗助手</h1>
       <h2 class="register-subtitle">注册</h2>
 
       <el-form :model="registerForm" :rules="rules" ref="registerFormRef" label-width="80px">

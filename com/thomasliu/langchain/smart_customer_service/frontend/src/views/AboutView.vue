@@ -3,7 +3,7 @@
     <header class="langchain-header">
       <div class="header-content">
         <div class="logo">
-          <span class="logo-text">小滴智能医疗助手</span>
+          <span class="logo-text">X智能医疗助手</span>
         </div>
         <div class="nav">
           <router-link to="/" class="nav-link">首页</router-link>
@@ -19,7 +19,7 @@
     <main class="about-container">
       <section class="hero-section">
         <div class="hero-content">
-          <h1 class="hero-title">小滴智能医疗助手</h1>
+          <h1 class="hero-title">X智能医疗助手</h1>
           <p class="hero-subtitle">基于 LangChain 1.x 构建的先进人工智能医疗咨询解决方案</p>
           <div class="hero-buttons">
             <a href="/" class="langchain-button primary">开始咨询</a>
@@ -154,7 +154,7 @@
           <a href="/about" class="footer-link">关于</a>
         </div>
         <div class="footer-copyright">
-          © 2026 小滴智能医疗助手 | 基于 LangChain 构建
+          © 2026 X智能医疗助手 | 基于 LangChain 构建
         </div>
       </div>
     </footer>
@@ -655,35 +655,35 @@ onMounted(() => {
     gap: 15px;
     text-align: center;
   }
-  
+
   .nav {
     flex-wrap: wrap;
     justify-content: center;
   }
-  
+
   .hero-title {
     font-size: 36px;
   }
-  
+
   .hero-subtitle {
     font-size: 16px;
   }
-  
+
   .hero-buttons {
     flex-direction: column;
     width: 100%;
     max-width: 300px;
   }
-  
+
   .features-grid,
   .tech-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .section-content {
     padding: 0 10px;
   }
-  
+
   .features-section,
   .tech-stack-section,
   .architecture-section {

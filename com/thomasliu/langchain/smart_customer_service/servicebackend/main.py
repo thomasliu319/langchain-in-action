@@ -4,7 +4,7 @@ import uvicorn
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from app.api import auth, conversations
+from app.api import auth, chat, conversations
 from app.config.settings import settings
 from app.database.postgresql import PostgresBase, postgres_engine
 #必须要导入模型 才能生存 表
@@ -44,6 +44,7 @@ app.add_middleware(
 #注册路由
 app.include_router(auth.router, prefix="/auth", tags=["登录注册"])
 app.include_router(conversations.router, prefix="/conversations", tags=["会话管理"])
+app.include_router(chat.router, prefix="/chat", tags=["AI对话"])
 
 
 
