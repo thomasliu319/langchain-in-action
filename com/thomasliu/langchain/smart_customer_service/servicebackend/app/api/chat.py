@@ -1,9 +1,11 @@
 import asyncio
+import json
 from typing import Optional
 
 from langchain_core.messages import HumanMessage
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -77,3 +79,61 @@ async def chat_send(
         error_msg = f"{type(e).__name__}: {str(e)}"
         print(f"AI回复失败:\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"AI回复失败: {error_msg}")
+
+@router.post("/stream")
+async def chat_stream(
+        req: ChatRequest,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_postgres_db)
+):
+    conversation = db.query(Conversation).filter(Conversation.id == req.thread_id).first()
+    if not conversation:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    def sync_stream():
+        graph = get_agent()
+        full_reply = ""
+
+        try:
+            for step in graph.stream(
+                {
+                    "messages": [HumanMessage(content=req.message)],
+                    "user_id": str(current_user.id),
+                    "thread_id": req.thread_id,
+                    "medical_documents": [],
+                    "diagnosis": None,
+                    "prescription": None,
+                },
+                config={"configurable": {"thread_id": req.thread_id}}
+            ):
+                for node_name, node_output in step.items():
+                    yield f"event: node\ndata: {json.dumps({'node': node_name})}\n\n"
+
+                    if node_output:
+                        msgs = node_output.get("messages", [])
+                        if msgs:
+                            last = msgs[-1]
+                            if hasattr(last, "content") and last.content:
+                                full_reply = last.content
+                                yield f"event: message\ndata: {json.dumps({'content': full_reply})}\n\n"
+
+            yield f"event: done\ndata: {json.dumps({'success': True, 'message': full_reply})}\n\n"
+
+            conversation.last_message = full_reply[:200]
+            db.commit()
+
+        except Exception as e:
+            import traceback
+            error_msg = f"{type(e).__name__}: {str(e)}"
+            print(f"AI流式回复失败:\n{traceback.format_exc()}")
+            yield f"event: error\ndata: {json.dumps({'detail': f'AI回复失败: {error_msg}'})}\n\n"
+
+    return StreamingResponse(
+        sync_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )

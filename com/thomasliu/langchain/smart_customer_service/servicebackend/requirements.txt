@@ -54,3 +54,11 @@ tavily-python==0.5.0
 
 # 工具
 python-dotenv==1.0.1
+
+# ─── 多模态 OCR ───
+transformers>=4.44.0
+torch>=2.0.0
+torchvision>=0.15.0
+accelerate>=0.30.0
+Pillow>=10.0.0
+pdf2image>=1.16.0

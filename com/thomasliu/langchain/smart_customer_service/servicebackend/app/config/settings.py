@@ -39,6 +39,10 @@ class Settings:
     ALGORITHM = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
+    # 本地 VL 模型配置（文档提取用）
+    VL_MODEL_PATH = os.getenv("VL_MODEL_PATH", "/home/thomas/Downloads/models/Qwen2.5-VL-7B-Instruct")
+    VL_MODEL_SERVER_URL = os.getenv("VL_MODEL_SERVER_URL", "http://localhost:8006/v1")
+
     # 服务器配置
     HOST = os.getenv("HOST")
     PORT = int(os.getenv("PORT"))

@@ -240,7 +240,7 @@ const processDocumentWithAI = async (fileName: string, documentType: string) => 
     const userMessage = `我上传了一份医疗文档：${fileName}（类型：${documentType}），请分析并提取其中的关键信息。`
 
     const token = localStorage.getItem('token')
-    const response = await fetch(`${backendUrl}/chat/send`, {
+    const response = await fetch(`${backendUrl}/chat/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -257,20 +257,38 @@ const processDocumentWithAI = async (fileName: string, documentType: string) => 
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    // 解析 JSON 响应
-    const data = await response.json()
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let lastAssistantIdx = messages.value.length - 1
+    let fullReply = ''
 
-    if (data.success && data.message) {
-      // 更新 AI 消息内容
-      const lastMessage = messages.value[messages.value.length - 1]
-      if (lastMessage && lastMessage.role === 'assistant') {
-        messages.value[messages.value.length - 1] = {
-          ...lastMessage,
-          content: data.message,
-          timestamp: new Date()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      const parts = buffer.split('\n')
+      buffer = parts.pop() || ''
+
+      for (const line of parts) {
+        if (line.startsWith('data: ')) {
+          const payload = JSON.parse(line.slice(6))
+          if (payload.content !== undefined) {
+            fullReply = payload.content
+            messages.value[lastAssistantIdx] = {
+              ...messages.value[lastAssistantIdx],
+              content: fullReply,
+              timestamp: new Date()
+            }
+            await nextTick()
+            scrollToBottom()
+          }
+          if (payload.detail) {
+            console.error('Stream error:', payload.detail)
+            ElMessage.error('AI 分析文档失败')
+          }
         }
-        await nextTick()
-        scrollToBottom()
       }
     }
   } catch (error) {
@@ -405,8 +423,6 @@ const handleSend = async () => {
 
   try {
 
-
-    const assistantMessageId = messages.value.length
     messages.value.push({
       role: 'assistant',
       content: '',
@@ -415,7 +431,7 @@ const handleSend = async () => {
     scrollToBottom()
 
     const token = localStorage.getItem('token')
-    const response = await fetch(`${backendUrl}/chat/send`, {
+    const response = await fetch(`${backendUrl}/chat/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -432,20 +448,44 @@ const handleSend = async () => {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    // 解析 JSON 响应（非流式）
-    const data = await response.json()
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let lastAssistantIdx = messages.value.length - 1
+    let fullReply = ''
 
-    if (data.success && data.message) {
-      // 一次性更新消息内容
-      const lastMessage = messages.value[messages.value.length - 1]
-      if (lastMessage && lastMessage.role === 'assistant') {
-        messages.value[messages.value.length - 1] = {
-          ...lastMessage,
-          content: data.message,
-          timestamp: new Date()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      const parts = buffer.split('\n')
+      buffer = parts.pop() || ''
+
+      for (const line of parts) {
+        if (line.startsWith('event: ')) {
+          continue
         }
-        await nextTick()
-        scrollToBottom()
+        if (line.startsWith('data: ')) {
+          const payload = JSON.parse(line.slice(6))
+          if (payload.content !== undefined) {
+            fullReply = payload.content
+            messages.value[lastAssistantIdx] = {
+              ...messages.value[lastAssistantIdx],
+              content: fullReply,
+              timestamp: new Date()
+            }
+            await nextTick()
+            scrollToBottom()
+          }
+          if (payload.success) {
+            // done
+          }
+          if (payload.detail) {
+            console.error('Stream error:', payload.detail)
+            ElMessage.error(payload.detail)
+          }
+        }
       }
     }
 
