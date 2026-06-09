@@ -146,5 +146,5 @@ def _fmt(size: int) -> str:
 
 
 if __name__ == "__main__":
-    model = sys.argv[1] if len(sys.argv) > 1 else "Qwen/Qwen2.5-VL-7B-Instruct"
+    model = sys.argv[1] if len(sys.argv) > 1 else "microsoft/Phi-3-mini-4k-instruct"
     download_repo(model)
