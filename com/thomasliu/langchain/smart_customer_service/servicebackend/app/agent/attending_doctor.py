@@ -13,9 +13,11 @@ from app.agent.tools import save_medical_info, search_web
 ATTENDING_DOCTOR_PROMPT = """
 【角色定义】
 你是主治医生，只负责诊断和制定治疗方案。
+{goal_section}
 
 【回复规则】
 - 回复简洁专业
+{compressed_section}
 
 【职责范围】
 你的职责（只做这些）：
@@ -44,28 +46,41 @@ def attending_doctor_node(state: MedicalAgentState):
         model = get_model()
 
         messages = state["messages"]
-
         user_id = state["user_id"]
-
         store = get_long_term_memory()
 
-        #用户 个人信息和医疗信息
+        # 用户历史记忆（已有信息和医疗记录）
         user_context = get_user_long_memory(user_id, store)
 
         if user_context:
             system_message = SystemMessage(content=f"用户历史信息:\n\n{user_context}")
+            messages = [system_message] + messages
 
-            messages = [system_message]+messages
+        # 构建目标段 + 压缩上下文段
+        goal_section = ""
+        goal = state.get("original_goal") or state.get("current_goal")
+        if goal:
+            goal_section = f"\n【当前任务目标】{goal}\n"
 
-        agent = create_agent(model=model, tools=[search_web, save_medical_info],
-                             system_prompt=ATTENDING_DOCTOR_PROMPT)
+        compressed_section = ""
+        compressed = state.get("compressed_history")
+        if compressed:
+            compressed_section = f"\n=====对话摘要=====\n{compressed}\n=====摘要结束====="
 
 
-        #构建配置信息
-        config={
-            "configurable":{
+        agent = create_agent(
+            model=model,
+            tools=[search_web, save_medical_info],
+            system_prompt=ATTENDING_DOCTOR_PROMPT.format(
+                goal_section=goal_section,
+                compressed_section=compressed_section,
+            ),
+        )
+
+        config = {
+            "configurable": {
                 "user_id": user_id,
-                "thread_id": state["thread_id"]
+                "thread_id": state["thread_id"],
             }
         }
 
@@ -74,28 +89,26 @@ def attending_doctor_node(state: MedicalAgentState):
         if response["messages"]:
             last_msg = response["messages"][-1]
 
-            if isinstance(last_msg,AIMessage):
+            if isinstance(last_msg, AIMessage):
                 if not last_msg.content.startswith("【主治医生】"):
-                    last_msg.content = "【主治医生】 \n"+last_msg.content
+                    last_msg.content = "【主治医生】 \n" + last_msg.content
 
                 save_user_long_memory(
                     store,
-                    ("user_medical_records",user_id,"diagnosis"),
+                    ("user_medical_records", user_id, "diagnosis"),
                     f"diagnosis_{uuid.uuid4().hex[:8]}",
-                    {"content":last_msg.content,"timestamp": str(uuid.uuid1())}
+                    {"content": last_msg.content, "timestamp": str(uuid.uuid1())},
                 )
 
         return {
             "messages": response["messages"],
-
-            "diagnosis":response["messages"][-1].content if response["messages"] else "",
-
-            "next":"__end__"
+            "diagnosis": response["messages"][-1].content if response["messages"] else "",
+            "next": "__end__",
         }
     except Exception as e:
         print(f"主治医生执行出错:{e}")
         print(traceback.format_exc())
         return {
-            "messages":[AIMessage(content=f"【主治医生】\n 抱歉，系统暂时无法处理您的请求。错误：{str(e)}")],
-            "next":"__end__"
+            "messages": [AIMessage(content=f"【主治医生】\n 抱歉，系统暂时无法处理您的请求。错误：{str(e)}")],
+            "next": "__end__",
         }

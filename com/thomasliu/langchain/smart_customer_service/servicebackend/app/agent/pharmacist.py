@@ -12,9 +12,11 @@ from app.agent.tools import search_web, save_medical_info
 PHARMACIST_PROMPT = """
 【角色定义】
 你是药师，只负责药品和用药相关问题。
+{goal_section}
 
 【回复规则】
 - 回复简洁实用
+{compressed_section}
 
 【职责范围】
 你的职责（只做这些）：
@@ -40,35 +42,47 @@ def pharmacist_node(state: MedicalAgentState):
         model = get_model()
 
         messages = state["messages"]
-
         user_id = state["user_id"]
-
         store = get_long_term_memory()
 
-        #从状态中获取 诊断信息 （来自于主治医生）
-        diagnosis = state.get("diagnosis","")
+        #从状态中获取诊断信息（来源于主治医生）
+        diagnosis = state.get("diagnosis", "")
 
-        #如果有诊断信息 添加到消息列表末尾
         if diagnosis:
-            messages = messages+[SystemMessage(content=f"\n\n【诊断信息】\n {diagnosis}")]
+            messages = messages + [SystemMessage(content=f"\n\n【诊断信息】\n {diagnosis}")]
 
-        #用户 个人信息和医疗信息
+        #用户历史信息
         user_context = get_user_long_memory(user_id, store)
 
         if user_context:
             system_message = SystemMessage(content=f"用户历史信息（特别注意过敏史）:\n\n{user_context}")
+            messages = [system_message] + messages
 
-            messages = [system_message]+messages
+        # 构建目标段 + 压缩上下文段
+        goal_section = ""
+        goal = state.get("original_goal") or state.get("current_goal")
+        if goal:
+            goal_section = f"\n【当前任务目标】{goal}\n"
 
-        agent = create_agent(model=model, tools=[search_web, save_medical_info],
-                             system_prompt=PHARMACIST_PROMPT)
+        compressed_section = ""
+        compressed = state.get("compressed_history")
+        if compressed:
+            compressed_section = f"\n=====对话摘要=====\n{compressed}\n=====摘要结束====="
 
 
-        #构建配置信息
-        config={
-            "configurable":{
+        agent = create_agent(
+            model=model,
+            tools=[search_web, save_medical_info],
+            system_prompt=PHARMACIST_PROMPT.format(
+                goal_section=goal_section,
+                compressed_section=compressed_section,
+            ),
+        )
+
+        config = {
+            "configurable": {
                 "user_id": user_id,
-                "thread_id": state["thread_id"]
+                "thread_id": state["thread_id"],
             }
         }
 
@@ -77,29 +91,27 @@ def pharmacist_node(state: MedicalAgentState):
         if response["messages"]:
             last_msg = response["messages"][-1]
 
-            if isinstance(last_msg,AIMessage):
+            if isinstance(last_msg, AIMessage):
                 if not last_msg.content.startswith("【药师】"):
-                    last_msg.content = "【药师】 \n"+last_msg.content
+                    last_msg.content = "【药师】 \n" + last_msg.content
 
                 #保存处方
                 save_user_long_memory(
                     store,
-                    ("user_medical_records",user_id,"prescription"),
+                    ("user_medical_records", user_id, "prescription"),
                     f"prescription_{uuid.uuid4().hex[:8]}",
-                    {"content":last_msg.content,"timestamp": str(uuid.uuid1())}
+                    {"content": last_msg.content, "timestamp": str(uuid.uuid1())},
                 )
 
         return {
             "messages": response["messages"],
-
-            "prescription":response["messages"][-1].content if response["messages"] else "",
-
-            "next":"__end__"
+            "prescription": response["messages"][-1].content if response["messages"] else "",
+            "next": "__end__",
         }
     except Exception as e:
         print(f"药师执行出错:{e}")
         print(traceback.format_exc())
         return {
-            "messages":[AIMessage(content=f"【药师】\n 抱歉，系统暂时无法处理您的请求。错误：{str(e)}")],
-            "next":"__end__"
+            "messages": [AIMessage(content=f"【药师】\n 抱歉，系统暂时无法处理您的请求。错误：{str(e)}")],
+            "next": "__end__",
         }

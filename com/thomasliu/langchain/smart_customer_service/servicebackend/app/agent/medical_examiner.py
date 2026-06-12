@@ -12,14 +12,13 @@ from app.agent.tools import search_web, save_user_info, save_medical_info
 MEDICAL_EXAMINER_PROMPT = """
 【角色定义】
 你是体检员，专门负责收集用户健康信息。
+{goal_section}
 
 【回复规则】
 - 回复简洁
 - 每次只问2-3个关键问题
 {memory_section}
-
-【职责范围】
-你的职责（只做这些）：
+{compressed_section}
 1. 收集用户基本信息：姓名、年龄、性别、联系方式
 2. 收集症状信息：主要症状、持续时间、严重程度
 3. 收集病史信息：既往病史、过敏史、家族病史
@@ -71,28 +70,42 @@ def medical_examiner_node(state: MedicalAgentState):
         model = get_model()
 
         messages = state["messages"]
-
         user_id = state["user_id"]
-
         store = get_long_term_memory()
 
-        #用户 个人信息和医疗信息
+        # 用户历史记忆
         user_context = get_user_long_memory(user_id, store)
 
-        #初始化 用户记忆信息
-        memory_section=""
+        # 构建三段式上下文
+        memory_section = ""
         if user_context:
             memory_section = f"\n=====用户已有信息（不要重复询问）=====\n{user_context}\n====已有信息结束====="
 
+        goal_section = ""
+        goal = state.get("original_goal") or state.get("current_goal")
+        if goal:
+            goal_section = f"\n【当前任务目标】{goal}\n"
 
-        agent = create_agent(model=model, tools=[search_web, save_user_info, save_medical_info],
-                             system_prompt=MEDICAL_EXAMINER_PROMPT.format(memory_section=memory_section))
+        compressed_section = ""
+        compressed = state.get("compressed_history")
+        if compressed:
+            compressed_section = f"\n=====对话摘要（之前已压缩的对话）=====\n{compressed}\n=====摘要结束=====\n"
 
-        #构建配置信息
-        config={
+
+        agent = create_agent(
+            model=model,
+            tools=[search_web, save_user_info, save_medical_info],
+            system_prompt=MEDICAL_EXAMINER_PROMPT.format(
+                memory_section=memory_section,
+                goal_section=goal_section,
+                compressed_section=compressed_section,
+            ),
+        )
+
+        config = {
             "configurable": {
                 "user_id": user_id,
-                "thread_id": state["thread_id"]
+                "thread_id": state["thread_id"],
             }
         }
 
@@ -100,14 +113,13 @@ def medical_examiner_node(state: MedicalAgentState):
 
         if response["messages"]:
             last_msg = response["messages"][-1]
-
             if isinstance(last_msg, AIMessage):
                 if not last_msg.content.startswith("【体检员】"):
-                    last_msg.content = "【体检员】\n"+last_msg.content
+                    last_msg.content = "【体检员】\n" + last_msg.content
 
         return {
             "messages": response["messages"],
-            "next":"__end__"
+            "next": "__end__",
         }
 
     except Exception as e:
@@ -115,6 +127,6 @@ def medical_examiner_node(state: MedicalAgentState):
         print(traceback.format_exc())
         return {
             "messages": [AIMessage(content=f"【体检员】\n 抱歉，系统暂时无法处理您的请求。错误：{str(e)}")],
-            "next": "__end__"
+            "next": "__end__",
         }
 

@@ -52,6 +52,13 @@ async def chat_send(
                     "medical_documents": [],
                     "diagnosis": None,
                     "prescription": None,
+                    "original_goal": None,
+                    "current_goal": None,
+                    "compressed_history": None,
+                    "raw_turns_since_compress": 0,
+                    "last_reflection": None,
+                    "reflection_signal": None,
+                    "tool_errors": [],
                 },
                 config={"configurable": {"thread_id": req.thread_id}}
             )
@@ -103,6 +110,13 @@ async def chat_stream(
                     "medical_documents": [],
                     "diagnosis": None,
                     "prescription": None,
+                    "original_goal": None,
+                    "current_goal": None,
+                    "compressed_history": None,
+                    "raw_turns_since_compress": 0,
+                    "last_reflection": None,
+                    "reflection_signal": None,
+                    "tool_errors": [],
                 },
                 config={"configurable": {"thread_id": req.thread_id}}
             ):
