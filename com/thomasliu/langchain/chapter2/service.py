@@ -26,6 +26,20 @@ def generate(prompt: str, max_new_tokens: int | None = None, temperature: float 
 
     input_len = inputs["input_ids"].shape[1]
 
+    print(inputs)
+    print(inputs["input_ids"])
+
+    print("---------------------------------------------------")
+
+    print(generated_ids)
+
+    print(tokenizer.decode(3323))
+    print(tokenizer.decode(622))
+    print(tokenizer.decode([3323, 622]))
+    print(tokenizer.decode(29901))
+
+    print("---------------------------------------------------")
+
     for id in inputs["input_ids"][0]:
         print(tokenizer.decode(id))
     return tokenizer.decode(generated_ids[0][input_len:], skip_special_tokens=True)

@@ -37,23 +37,27 @@ _ALIGNMENT_PROMPT = """
 """
 
 _COMPRESS_PROMPT = """
-请将以下对话压缩为一段简洁的摘要，保留所有关键事实（用户症状、病史、过敏史、诊断结果、处方信息、用户基本信息）。
+你是一个医疗对话摘要器。将新对话合并到已有摘要中。
 
-【对话】
-{conversation}
+【已有摘要】
+{existing_summary}
 
-【压缩要求】
-1. 保留所有医疗相关事实
-2. 按时间顺序组织
-3. 保留用户已提供但尚未处理的需求
-4. 压缩后的摘要控制在 300 字以内
-5. 输出时开头标注此段为「对话摘要」
+【新对话】
+{new_conversation}
 
-压缩结果：
+【要求】
+1. 将新对话中的新信息合并到已有摘要中
+2. 保留所有医疗相关事实（症状、病史、过敏史、诊断、处方、基本信息）
+3. 按时间顺序组织
+4. 保留用户已提供但尚未处理的需求
+5. 压缩后的完整摘要控制在 500 字以内
+6. 输出的开头标注「对话摘要」
+
+合并后的摘要：
 """
 
 # 达到此轮数触发上下文压缩
-_COMPRESS_AFTER_TURNS = 4
+_COMPRESS_AFTER_TURNS = 3
 
 
 # ==================== 核心函数 ====================
@@ -114,24 +118,55 @@ def check_alignment(
         return "aligned", ""
 
 
-def compress_context(messages: list) -> str:
-    """将历史对话压缩为摘要"""
+def compress_context(
+    messages: list,
+    existing_summary: str = "",
+    state: dict | None = None,
+) -> str:
+    """
+    增量压缩：只压缩上次压缩之后的新消息，再合并到已有摘要。
+
+    参数:
+        messages: 全量消息列表
+        existing_summary: 已有的 compressed_history
+        state: state 字典（用于计算 from_index）
+
+    返回:
+        合并后的完整摘要
+    """
     try:
-        text = "\n".join(
-            f"{'用户' if isinstance(m, HumanMessage) else '助手'}: {m.content}"
-            for m in messages
+        # 计算从哪条消息开始是新消息
+        raw_turns = (state or {}).get("raw_turns_since_compress", 0)
+        # 每条消息按 2 轮算（user + AI），取尾部最新的消息
+        n_new = max(raw_turns * 2, 4)  # 至少取 4 条
+        new_msgs = messages[-n_new:] if len(messages) > n_new else messages
+
+        new_text = "\n".join(
+            f"{'用户' if isinstance(m, HumanMessage) else '助手'}: {m.content[:500]}"
+            for m in new_msgs
         )
-        if len(text) < 500:
-            return ""
+        if len(new_text) < 100:
+            return existing_summary
 
         model = get_model()
-        prompt = _COMPRESS_PROMPT.format(conversation=text)
+
+        if existing_summary:
+            prompt = _COMPRESS_PROMPT.format(
+                existing_summary=existing_summary,
+                new_conversation=new_text,
+            )
+        else:
+            prompt = _COMPRESS_PROMPT.format(
+                existing_summary="（无）",
+                new_conversation=new_text,
+            )
+
         resp = model.invoke([SystemMessage(content=prompt)])
         return resp.content.strip()
 
     except Exception as e:
         print(f"上下文压缩失败：{e}")
-        return ""
+        return existing_summary
 
 
 def should_compress(state: dict) -> bool:
@@ -167,12 +202,12 @@ def reflector_node(state: dict) -> dict:
         updates["last_reflection"] = f"[{alignment}] {reason}".strip()
 
         # 第 3 步：判断是否需要压缩
-        # 注意：不替换 messages，只生成摘要存入 compressed_history
-        # 各 agent 会在 system prompt 中同时看到全量消息 + 压缩摘要
+        # 增量压缩：已有摘要 + 新消息
         raw_turns = state.get("raw_turns_since_compress", 0)
         if should_compress(state) or alignment == "summarize_needed":
-            summary = compress_context(messages)
-            if summary:
+            existing = state.get("compressed_history", "")
+            summary = compress_context(messages, existing_summary=existing, state=state)
+            if summary and summary != existing:
                 updates["compressed_history"] = summary
                 updates["raw_turns_since_compress"] = 0
         else:

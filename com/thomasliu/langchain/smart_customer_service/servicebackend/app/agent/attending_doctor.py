@@ -49,7 +49,7 @@ def attending_doctor_node(state: MedicalAgentState):
         user_id = state["user_id"]
         store = get_long_term_memory()
 
-        # 用户历史记忆（已有信息和医疗记录）
+        # 用户历史记忆
         user_context = get_user_long_memory(user_id, store)
 
         if user_context:

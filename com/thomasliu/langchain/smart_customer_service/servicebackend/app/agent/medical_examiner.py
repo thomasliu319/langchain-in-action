@@ -73,10 +73,10 @@ def medical_examiner_node(state: MedicalAgentState):
         user_id = state["user_id"]
         store = get_long_term_memory()
 
-        # 用户历史记忆
+        # 获取用户历史记忆
         user_context = get_user_long_memory(user_id, store)
 
-        # 构建三段式上下文
+        # 构建上下文
         memory_section = ""
         if user_context:
             memory_section = f"\n=====用户已有信息（不要重复询问）=====\n{user_context}\n====已有信息结束====="

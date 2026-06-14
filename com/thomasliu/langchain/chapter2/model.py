@@ -3,7 +3,7 @@
 import json
 import os
 
-from transformers import AutoConfig, AutoTokenizer
+from transformers import AutoTokenizer
 
 from . import config
 
@@ -33,8 +33,8 @@ def load():
         config.MODEL_PATH,
         device_map=config.DEVICE,
         torch_dtype=config.DTYPE,
-        trust_remote_code=True,
+        attn_implementation="eager",
     )
-    _tokenizer = AutoTokenizer.from_pretrained(config.MODEL_PATH, trust_remote_code=True)
+    _tokenizer = AutoTokenizer.from_pretrained(config.MODEL_PATH)
     print(f"模型加载完成，设备: {_llm.device}")
     return _llm, _tokenizer

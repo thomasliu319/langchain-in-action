@@ -33,6 +33,21 @@ class Settings:
     POSTGRES_LONG_TERM_URL = os.getenv("POSTGRES_LONG_TERM_URL", "")
     POSTGRES_SESSION_URL = os.getenv("POSTGRES_SESSION_URL", "")
 
+    # 长期记忆后端类型：postgres | milvus
+    LONG_TERM_MEMORY_TYPE = os.getenv("LONG_TERM_MEMORY_TYPE", "postgres").lower()
+
+    # Redis 短期记忆配置
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    REDIS_CHECKPOINT_TTL = int(os.getenv("REDIS_CHECKPOINT_TTL", "86400"))  # 默认 24h
+
+    # Milvus 长期记忆配置
+    MILVUS_URI = os.getenv("MILVUS_URI", "http://192.168.3.22:19530")
+
+    # ChromaDB 长期记忆配置（保留兼容，当前未使用）
+    CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
+    EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME", "all-MiniLM-L6-v2")
+    VECTOR_MEMORY_TOP_K = int(os.getenv("VECTOR_MEMORY_TOP_K", "10"))
+
 
     # 应用配置
     SECRET_KEY = os.getenv("SECRET_KEY", "default-secret-key")

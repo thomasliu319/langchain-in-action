@@ -14,10 +14,16 @@ from app.models.medical_document import MedicalDocument
 __all__ = [ "Conversation", "MedicalDocument"]
 
 
-#初始化 LangSmith
-os.environ["LANGCHAIN_TRACING_V2"] = str(settings.LANGCHAIN_TRACING_V2).lower()
-os.environ["LANGCHAIN_API_KEY"] = settings.LANGCHAIN_API_KEY
-os.environ["LANGCHAIN_PROJECT"] = settings.LANGCHAIN_PROJECT
+# 初始化 LangSmith（网络不通时静默关闭，避免刷屏错误）
+import httpx
+try:
+    httpx.get("https://api.smith.langchain.com", timeout=2)
+    os.environ["LANGCHAIN_TRACING_V2"] = str(settings.LANGCHAIN_TRACING_V2).lower()
+    os.environ["LANGCHAIN_API_KEY"] = settings.LANGCHAIN_API_KEY
+    os.environ["LANGCHAIN_PROJECT"] = settings.LANGCHAIN_PROJECT
+except Exception:
+    os.environ["LANGCHAIN_TRACING_V2"] = "false"
+    print("  [LangSmith] 网络不可达，已关闭追踪")
 
 try:
     # 根据 模型定义 创建表（没有则创建）
@@ -25,6 +31,11 @@ try:
     print("ok postgresql 数据库表创建成功")
 except Exception as e:
     print(f"postgresql数据库表创建失败:{e}")
+
+# 提示当前长期记忆后端类型
+print(f"长期记忆后端: {settings.LONG_TERM_MEMORY_TYPE}")
+if settings.LONG_TERM_MEMORY_TYPE == "milvus":
+    print(f"  Milvus URI: {settings.MILVUS_URI}")
 
 
 

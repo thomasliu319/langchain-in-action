@@ -116,6 +116,14 @@ def _build_context_sections(state: MedicalAgentState, store) -> dict:
     return sections
 
 
+# # 子目标映射（路由到哪个智能体时的当前子目标）
+_GOAL_MAP = {
+    "medical_examiner": "收集用户基本信息和病史症状",
+    "attending_doctor": "根据已有信息进行诊断并给出治疗方案",
+    "pharmacist": "提供用药指导和药品咨询",
+    "supervisor": "导诊引导和总体协调",
+}
+
 # 监督者节点
 def supervisor_node(state: MedicalAgentState):
     try:
@@ -150,7 +158,7 @@ def supervisor_node(state: MedicalAgentState):
         if next_node != "supervisor":
             return {
                 "next": next_node,
-                "current_goal": goal_map.get(next_node, ""),
+                "current_goal": _GOAL_MAP.get(next_node, ""),
                 "original_goal": original_goal,
             }
 
@@ -190,12 +198,3 @@ def supervisor_node(state: MedicalAgentState):
             ],
             "next": "__end__",
         }
-
-
-# 子目标映射（路由到哪个智能体时的当前子目标）
-goal_map = {
-    "medical_examiner": "收集用户基本信息和病史症状",
-    "attending_doctor": "根据已有信息进行诊断并给出治疗方案",
-    "pharmacist": "提供用药指导和药品咨询",
-    "supervisor": "导诊引导和总体协调",
-}

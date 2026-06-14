@@ -2,7 +2,7 @@ from langgraph.graph import StateGraph, END
 
 from app.agent.attending_doctor import attending_doctor_node
 from app.agent.medical_examiner import medical_examiner_node
-from app.agent.memory import init_memory_system, get_short_term_memory, get_long_term_memory
+from app.agent.memory import init_memory_system, get_short_term_memory
 from app.agent.pharmacist import pharmacist_node
 from app.agent.quality import reflector_node
 from app.agent.state import MedicalAgentState
@@ -15,10 +15,9 @@ def create_medical_agent_system():
     # 初始化记忆系统
     init_memory_system()
 
-    # 获取记忆实例（使用函数确保获取最新实例）
+    # 获取检查点实例（Redis 后端）
     checkpointer = get_short_term_memory()
-
-    store = get_long_term_memory()
+    # store 由各 agent 节点通过 get_long_term_memory() 按需获取
 
     builder = StateGraph(MedicalAgentState)
 
@@ -63,7 +62,9 @@ def create_medical_agent_system():
         },
     )
 
-    # 使用函数返回的记忆实例（确保已初始化）
-    graph = builder.compile(checkpointer=checkpointer, store=store)
+    # 使用 Redis 检查点存储器
+    # store 不传 compile()，由各 agent 通过 get_long_term_memory() 直接获取
+    # （避免 LangGraph 运行时对非 PostgresStore 类型的兼容性要求）
+    graph = builder.compile(checkpointer=checkpointer)
 
     return graph

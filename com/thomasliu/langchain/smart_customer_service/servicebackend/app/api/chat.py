@@ -43,23 +43,16 @@ async def chat_send(
     try:
         graph = get_agent()
 
+        # 只传每轮必需字段，持久化字段由 checkpoint 恢复，避免覆盖
+        input_state = {
+            "messages": [HumanMessage(content=req.message)],
+            "user_id": str(current_user.id),
+            "thread_id": req.thread_id,
+            "medical_documents": [],
+        }
         result = await asyncio.to_thread(
             lambda: graph.invoke(
-                {
-                    "messages": [HumanMessage(content=req.message)],
-                    "user_id": str(current_user.id),
-                    "thread_id": req.thread_id,
-                    "medical_documents": [],
-                    "diagnosis": None,
-                    "prescription": None,
-                    "original_goal": None,
-                    "current_goal": None,
-                    "compressed_history": None,
-                    "raw_turns_since_compress": 0,
-                    "last_reflection": None,
-                    "reflection_signal": None,
-                    "tool_errors": [],
-                },
+                input_state,
                 config={"configurable": {"thread_id": req.thread_id}}
             )
         )
@@ -108,15 +101,6 @@ async def chat_stream(
                     "user_id": str(current_user.id),
                     "thread_id": req.thread_id,
                     "medical_documents": [],
-                    "diagnosis": None,
-                    "prescription": None,
-                    "original_goal": None,
-                    "current_goal": None,
-                    "compressed_history": None,
-                    "raw_turns_since_compress": 0,
-                    "last_reflection": None,
-                    "reflection_signal": None,
-                    "tool_errors": [],
                 },
                 config={"configurable": {"thread_id": req.thread_id}}
             ):

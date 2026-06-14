@@ -1,139 +1,188 @@
-from langgraph.checkpoint.postgres import PostgresSaver
-from langgraph.store.postgres import PostgresStore
-from psycopg_pool import ConnectionPool
+"""
+记忆系统：短期记忆(Redis + TTL) + 长期记忆(PostgreSQL / Milvus 可切换)
+
+架构：
+- 短期：自定义 RedisCheckpointer（LangGraph 线程检查点，自动 TTL 过期）
+- 长期：PostgresStore 或 MilvusStore（由 LONG_TERM_MEMORY_TYPE 控制）
+"""
+import traceback
+from typing import Any, Optional
 
 from app.config.settings import settings
+from app.database.redis_checkpointer import RedisCheckpointer
 
-#短记忆数据库连接池
-short_term_pool = None
-#长记忆数据库连接池
-long_term_pool = None
+# ==================== 全局实例 ====================
 
-#段记忆储存器实例
-short_term_memory = None
-#长记忆储存器实例
-long_term_memory = None
+_short_term_memory: Optional[RedisCheckpointer] = None
+_long_term_memory: Any = None
+_long_term_pool: Any = None
 
-#初始化 记忆  连接池
+
+# ==================== 初始化 ====================
+
+
+def _init_postgres_store():
+    """初始化 PostgreSQL 长期记忆"""
+    global _long_term_memory, _long_term_pool
+    from langgraph.store.postgres import PostgresStore
+    from psycopg_pool import ConnectionPool
+
+    _long_term_pool = ConnectionPool(
+        conninfo=settings.POSTGRES_LONG_TERM_URL,
+        min_size=2, max_size=10,
+        kwargs={
+            "autocommit": True, "prepare_threshold": 0,
+            "keepalives": 1, "keepalives_idle": 30,
+            "keepalives_interval": 10, "keepalives_count": 3,
+        },
+    )
+    _long_term_memory = PostgresStore(_long_term_pool)
+    _long_term_memory.setup()
+    print("  \u2705 PostgreSQL \u957f\u671f\u8bb0\u5fc6\u5c31\u7eea")
+
+
+def _init_milvus_store():
+    """初始化 Milvus 长期记忆"""
+    global _long_term_memory
+    from app.database.milvus_store import MilvusStore
+
+    _long_term_memory = MilvusStore()
+    _long_term_memory.setup()
+    print(f"  \u2705 Milvus \u957f\u671f\u8bb0\u5fc6\u5c31\u7eea\uff08URI: {settings.MILVUS_URI}\uff09")
+
+
 def init_memory_system():
-    global short_term_pool, long_term_pool, short_term_memory, long_term_memory
+    """初始化记忆系统（启动时调用一次）"""
+    global _short_term_memory, _long_term_memory, _long_term_pool
 
-    if short_term_pool is None:
-        try:
-            print("短记忆连接池 初始化中")
-            short_term_pool = ConnectionPool(conninfo=settings.POSTGRES_SHORT_TERM_URL, min_size=2, max_size=10,
-                                             kwargs={"autocommit": True, "prepare_threshold": 0, "keepalives": 1,
-                                                     "keepalives_idle": 30, "keepalives_interval": 10,
-                                                     "keepalives_count": 3})
+    if _short_term_memory is not None and _long_term_memory is not None:
+        return
 
-            short_term_memory = PostgresSaver(short_term_pool)
+    print("\U0001f504 \u521d\u59cb\u5316\u8bb0\u5fc6\u7cfb\u7edf...")
 
-            short_term_memory.setup()
+    # 1. Redis 短期记忆
+    try:
+        _short_term_memory = RedisCheckpointer.from_conn_str(settings.REDIS_URL)
+        print(f"  \u2705 Redis \u77ed\u671f\u8bb0\u5fc6\u5c31\u7eea\uff08TTL: {settings.REDIS_CHECKPOINT_TTL}s\uff09")
+    except Exception as e:
+        print(f"  \u274c Redis \u77ed\u671f\u8bb0\u5fc6\u521d\u59cb\u5316\u5931\u8d25\uff1a{e}")
+        raise
 
-            print("初始化短记忆连接池成功")
+    # 2. 长期记忆（按配置选择后端）
+    try:
+        backend = settings.LONG_TERM_MEMORY_TYPE
+        if backend == "milvus":
+            _init_milvus_store()
+        elif backend == "postgres":
+            _init_postgres_store()
+        else:
+            raise ValueError(f"\u672a\u77e5\u7684\u957f\u671f\u8bb0\u5fc6\u540e\u7aef: {backend}\uff0c\u8bf7\u8bbe\u7f6e LONG_TERM_MEMORY_TYPE=postgres \u6216 milvus")
+    except Exception as e:
+        print(f"  \u274c \u957f\u671f\u8bb0\u5fc6\u521d\u59cb\u5316\u5931\u8d25\uff1a{e}")
+        raise
 
-            #长记忆连接池
-            long_term_pool = ConnectionPool(conninfo=settings.POSTGRES_LONG_TERM_URL, min_size=2, max_size=10,
-                                            kwargs={"autocommit": True, "prepare_threshold": 0, "keepalives": 1,
-                                                    "keepalives_idle": 30, "keepalives_interval": 10,
-                                                    "keepalives_count": 3})
+    print("  \u2705 \u8bb0\u5fc6\u7cfb\u7edf\u521d\u59cb\u5316\u5b8c\u6210")
 
-            long_term_memory = PostgresStore(long_term_pool)
 
-            long_term_memory.setup()
-            print("初始化长记忆连接池成功")
-        except Exception as e:
-            print(f"记忆系统初始化失败: {str(e)}")
-            raise
+# ==================== 短期记忆（Redis 检查点）====================
 
-#获取短记忆实例
+
 def get_short_term_memory():
-    global short_term_memory
-    if short_term_memory is None:
+    """获取 LangGraph 检查点存储器（Redis 后端，自动 TTL 过期）"""
+    global _short_term_memory
+    if _short_term_memory is None:
         init_memory_system()
-    return short_term_memory
+    return _short_term_memory
 
 
-#获取长记忆 实例
+# ==================== 长期记忆（PostgreSQL / Milvus）====================
+
+
 def get_long_term_memory():
-    global long_term_memory
-    if long_term_memory is None:
+    """获取长期记忆实例（按配置返回 PostgresStore 或 MilvusStore）"""
+    global _long_term_memory
+    if _long_term_memory is None:
         init_memory_system()
-    return long_term_memory
+    return _long_term_memory
 
 
-#长记忆管理
+# ==================== 兼容接口 ====================
 
-#保存用户数据到长记忆 个人信息+医疗记录
-def save_user_long_memory(store, namespace: tuple, item_id: str, data: dict):
+
+def save_user_long_memory(
+    store: Any,
+    namespace: tuple,
+    item_id: str,
+    data: dict,
+):
+    """保存用户数据到长期记忆。
+    
+    store.put(namespace, item_id, data) — 兼容 PostgresStore 和 MilvusStore。
+    """
     if store is None:
         store = get_long_term_memory()
     try:
         store.put(namespace, item_id, data)
     except Exception as e:
-        print(f"保存用户信息长记忆出错：{str(e)}")
+        print(f"保存长记忆出错: {e}")
+        print(traceback.format_exc())
 
 
-#获取用户长记忆 个人信息+医疗记录
-def get_user_long_memory(user_id:str,store=None)->str:
+def get_user_long_memory(
+    user_id: str,
+    store: Any = None,
+    query: Optional[str] = None,
+) -> str:
+    """
+    获取用户长记忆的格式化文本。
+    
+    从长期存储中检索用户基本信息和医疗历史，拼接为文本供 LLM 使用。
+    兼容 PostgresStore 和 MilvusStore 两种后端。
+    """
     if store is None:
         store = get_long_term_memory()
 
     user_info = []
 
     try:
-        # 用户个人信息获取
+        # 用户基本信息
         preferences = store.search(("user_preferences", user_id))
-
         if preferences:
-            pref_dict={}
-
+            pref_dict = {}
             for item in preferences:
-                #langgraph 储存数据时  自动用 |  连接 key，  namespace|user_id|item_id
-                key_parts = item.key.split("|") if "|" in item.key else [item.key]
-                item_id = key_parts[-1] if key_parts else item.key
-                #去重
+                key_parts = str(item.key).split("|") if "|" in str(item.key) else [str(item.key)]
+                item_id = key_parts[-1] if key_parts else str(item.key)
                 pref_dict[item_id] = item.value
 
-            #输出最新的值
-            pref_text="\n".join([
-                f"{value.get('key')}:{value.get('value')}"
-                for value in pref_dict.values()
-            ])
+            pref_text = "\n".join(
+                f"{v.get('key')}: {v.get('value')}"
+                for v in pref_dict.values()
+            )
+            user_info.append("【用户基本信息】\n" + pref_text)
 
-            user_info.append("【用户基本信息】\n"+pref_text)
+        # 医疗历史
+        medical_history = store.search(("user_medical_history", user_id))
+        if medical_history:
+            cat_map = {}
+            for item in medical_history:
+                cat = item.value.get("category", "unknown")
+                content = item.value.get("content", "")
+                if cat not in cat_map:
+                    cat_map[cat] = []
+                cat_map[cat].append(content)
 
-            #获取用户医疗历史
-            medical_history = store.search(("user_medical_history", user_id))
+            hist_lines = []
+            for cat, contents in cat_map.items():
+                if len(contents) == 1:
+                    hist_lines.append(f"{cat}: {contents[0]}")
+                else:
+                    items_text = "\n".join(f"{i+1}. {c}" for i, c in enumerate(contents))
+                    hist_lines.append(f"{cat}:\n{items_text}")
 
-            if medical_history:
-                medical_by_category = {}
-                #遍历所有医疗历史
-                for item in medical_history:
-                    #获取类别  过敏史  手术史  家族病史
-                    category = item.value.get("category", "unknown")
-                    #获取内容
-                    content = item.value.get("content", "")
-                    if category not in medical_by_category:
-                        medical_by_category[category] = []
-                    medical_by_category[category].append(content)
-                # 格式化输出
-                history_lines=[]
-                for category,contents in medical_by_category.items():
-                    #如果只有一条 直接显示
-                    if len(contents) == 1:
-                        history_lines.append(f"{category}:{contents[0]}")
-                    else:
-                        items_text = "\n".join([
-                            f"{i+1}.{c}" for i,c in enumerate(contents)
-                        ])
-                        history_lines.append(f"{category}:\n{items_text}")
-                #拼接所有医疗历史
-                medical_text = "\n".join(history_lines)
-                user_info.append(" 【医疗历史】\n"+medical_text)
+            user_info.append("【医疗历史】\n" + "\n".join(hist_lines))
 
     except Exception as e:
-        print(f"获取用户长记忆出错：{str(e)}")
+        print(f"获取长记忆出错: {e}")
+        print(traceback.format_exc())
 
-    return "\n\n".join(user_info)   if user_info else ""
-
+    return "\n\n".join(user_info) if user_info else ""
